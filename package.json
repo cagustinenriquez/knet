@@ -1,0 +1,15 @@
+{
+  "name": "knet",
+  "version": "0.1.0",
+  "description": "Desktop job alerts: get notified when a new job matches your skills and experience.",
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/start.js",
+    "test": "node --test test/"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^45.2.0"
+  }
+}

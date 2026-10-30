@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>knet</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">knet<span>job alerts</span></div>
+    <nav>
+      <button class="nav active" data-view="matches">Matches <span id="newBadge" class="badge" hidden></span></button>
+      <button class="nav" data-view="profile">My profile</button>
+      <button class="nav" data-view="settings">Settings</button>
+    </nav>
+    <div class="sync">
+      <button id="syncBtn" class="btn small">Check now</button>
+      <div id="syncInfo" class="muted"></div>
+    </div>
+  </aside>
+
+  <main>
+    <!-- MATCHES -->
+    <section id="view-matches" class="view">
+      <div id="onboarding" class="banner" hidden>
+        Add your skills and the roles you want in <a href="#" data-goto="profile">My profile</a> to start getting matches.
+      </div>
+      <div class="toolbar">
+        <div class="tabs" id="statusTabs">
+          <button data-status="inbox" class="active">Inbox</button>
+          <button data-status="all">All</button>
+          <button data-status="saved">Saved</button>
+          <button data-status="applied">Applied</button>
+          <button data-status="dismissed">Dismissed</button>
+        </div>
+        <input id="search" type="search" placeholder="Search title, company, skill…" />
+        <label class="range">Min match <input id="minScore" type="range" min="0" max="100" step="5" /> <b id="minScoreVal"></b></label>
+      </div>
+      <div class="split">
+        <ul id="jobList" class="job-list"></ul>
+        <article id="jobDetail" class="detail"><p class="muted empty">Select a job to see why it matches.</p></article>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="view-profile" class="view" hidden>
+      <h1>My profile</h1>
+      <p class="muted">This is what jobs are matched against. Press Enter after each item.</p>
+      <form id="profileForm" class="form">
+        <label>Name <input name="name" placeholder="Optional" /></label>
+        <label>Roles I want <span class="hint">e.g. Frontend Developer, Data Engineer</span>
+          <div class="chips" data-field="titles"></div></label>
+        <label>Tech stack / hard skills <span class="hint">e.g. React, TypeScript, PostgreSQL, AWS</span>
+          <div class="chips" data-field="skills"></div></label>
+        <label>Soft skills <span class="hint">e.g. communication, leadership, mentoring</span>
+          <div class="chips" data-field="softSkills"></div></label>
+        <label>Years of experience <input name="years" type="number" min="0" max="50" step="1" /></label>
+        <label>Locations I can work from <span class="hint">e.g. Europe, USA, Worldwide, Berlin</span>
+          <div class="chips" data-field="locations"></div></label>
+        <label class="check"><input name="remoteOnly" type="checkbox" /> Remote jobs only</label>
+        <label>Never show jobs mentioning <span class="hint">matched against title and company, e.g. crypto, sales</span>
+          <div class="chips" data-field="exclude"></div></label>
+        <div class="actions"><button class="btn primary" type="submit">Save profile</button><span id="profileSaved" class="muted"></span></div>
+      </form>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="view-settings" class="view" hidden>
+      <h1>Settings</h1>
+      <form id="settingsForm" class="form">
+        <label class="check"><input name="notifications" type="checkbox" /> Desktop notifications for new matches</label>
+        <label>Notify when a job matches at least <span class="hint">0–100</span>
+          <input name="threshold" type="number" min="0" max="100" step="5" /></label>
+        <label>Check for new jobs every (minutes) <input name="intervalMinutes" type="number" min="5" max="1440" /></label>
+        <label>Only notify for jobs posted in the last (days) <input name="maxAgeDays" type="number" min="1" max="60" /></label>
+        <fieldset><legend>Job sources</legend><div id="sourceList"></div></fieldset>
+        <div class="actions">
+          <button class="btn primary" type="submit">Save settings</button>
+          <button class="btn" type="button" id="testNotif">Send test notification</button>
+          <span id="settingsSaved" class="muted"></span>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
