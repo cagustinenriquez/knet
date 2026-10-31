@@ -1,7 +1,7 @@
 # Builds OkNetwork installers. See README → "Packaging".
 #
-# - Push a tag like v0.2.0 → builds macOS (DMG + ZIP, Apple Silicon + Intel) and the snap,
-#   and attaches them to a GitHub Release for that tag.
+# - Push a tag like v0.2.0 → builds macOS (DMG + ZIP, Apple Silicon + Intel), Windows
+#   (installer .exe, x64 + ARM64) and the snap, and attaches them to a GitHub Release.
 # - Run it by hand (Actions → Release → Run workflow) → same builds, downloadable from the
 #   run's "Artifacts" section, no release.
 #
@@ -10,6 +10,10 @@
 #   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID  (for notarization)
 # Without them the app is ad-hoc signed: it runs on Apple Silicon, but macOS asks users to
 # approve it once (System Settings → Privacy & Security → Open Anyway).
+#
+# Windows: the installer is unsigned for now, so SmartScreen shows "Windows protected your PC"
+# (More info → Run anyway). To sign later, add WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD secrets
+# (electron-builder picks them up), or publish through the Microsoft Store.
 #
 # Snap Store upload (edge channel) turns on when SNAPCRAFT_STORE_CREDENTIALS exists
 # (from `snapcraft export-login --snaps=oknetwork --channels=edge -`).
@@ -57,6 +61,29 @@ jobs:
             dist/*.zip
           if-no-files-found: error
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build the installer
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          [ -n "$WIN_CSC_LINK" ] || unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
+          npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.exe
+          if-no-files-found: error
+
   snap:
     runs-on: ubuntu-latest
     steps:
@@ -82,7 +109,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [mac, snap]
+    needs: [mac, windows, snap]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

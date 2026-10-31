@@ -76,7 +76,9 @@ function createTray() {
       img.setTemplateImage(true);
       tray = new Tray(img);
     } else {
-      tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 22, height: 22 }));
+      // Windows draws tray icons at 16px (32px on high-DPI screens); Linux panels at ~22px.
+      const size = process.platform === 'win32' ? 32 : 22;
+      tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: size, height: size, quality: 'best' }));
     }
   } catch (e) {
     console.warn('Tray not available:', e.message);

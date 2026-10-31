@@ -223,7 +223,7 @@ Data lives in `~/.config/knet/knet-data.json` on Linux
 
 ## Packaging
 
-### Releases (macOS + snap)
+### Releases (macOS, Windows, snap)
 
 Push a version tag and GitHub Actions builds everything and attaches it to a GitHub Release
 (`.github/workflows/release.yml`):
@@ -237,6 +237,10 @@ git commit -am "v0.2.0" && git tag v0.2.0 && git push origin dev v0.2.0
   Without an Apple Developer certificate the app is ad-hoc signed, so users approve it once:
   open it, then System Settings → Privacy & Security → **Open Anyway**. To sign and notarize
   (no warning), add the repository secrets listed at the top of the workflow.
+- **Windows:** `OkNetwork-Setup-<version>-x64.exe` (and `-arm64.exe`): a one-click installer
+  for the current user (no admin rights), with Start menu and desktop shortcuts. Unsigned for
+  now, so SmartScreen shows "Windows protected your PC": **More info → Run anyway**.
+  Building it needs Windows (or Wine), so use the workflow.
 - **Snap:** built on every release; uploaded to the edge channel when the
   `SNAPCRAFT_STORE_CREDENTIALS` secret exists.
 

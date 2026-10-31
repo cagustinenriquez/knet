@@ -49,6 +49,15 @@
 - [ ] Release workflow: after the Mac build, install the DMG on the GitHub macOS runner,
   launch the app and upload screenshots as an artifact (smoke test on a real Mac).
 
+## Windows
+
+- [ ] Test the installer on Windows 11 (free evaluation VM from Microsoft, e.g. in GNOME
+  Boxes or VirtualBox): install, Start menu shortcut, notifications, tray icon (right-click
+  menu, closing the window keeps alerts running), uninstall keeps `%APPDATA%\knet`.
+- [ ] Remove the SmartScreen warning: **Microsoft Store** (free individual developer account;
+  the Store signs the app; electron-builder `appx` target + Partner Center identity) or Azure
+  Trusted Signing (~$10/month) with `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` secrets.
+
 ## Store listing assets
 
 - [ ] Snap Store listing icon: the store accepts 40×40 to 512×512, so `build/icon.png`

@@ -10,7 +10,8 @@
     "icons": "electron scripts/render-icons.js",
     "dist:snap": "electron-builder --linux snap",
     "dist:linux": "electron-builder --linux snap AppImage deb",
-    "dist:mac": "electron-builder --mac"
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
   },
   "license": "UNLICENSED",
   "devDependencies": {
@@ -108,6 +109,28 @@
     },
     "dmg": {
       "title": "OkNetwork ${version}"
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "OkNetwork-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "OkNetwork",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     }
   },
   "desktopName": "oknetwork.desktop"
