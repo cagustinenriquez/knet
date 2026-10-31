@@ -308,3 +308,15 @@ the placeholders first). The app links to it from the registration screen and Se
 - On GNOME, the tray icon needs the AppIndicator extension.
 - Stack: Electron was picked so the MVP could be built quickly. If it works out, the UI
   can be reused as-is in a Tauri (Rust) app for a smaller, lighter build.
+
+## License
+
+OkNetwork is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License as published by the Free Software Foundation, either version 3 of
+the License, or (at your option) any later version. See [LICENSE](LICENSE).
+
+In short: anyone may use, study, change and share it, and copies or modified versions must
+be shared under the same license, with their source code.
+
+Copyright © 2026 The OkNetwork authors. Contributions are accepted under the same license.
+Job listings shown in the app belong to the boards and companies that publish them.

@@ -745,9 +745,14 @@ async function init() {
 
 init();
 
-// Privacy policy links (registration screen and Settings).
-const PRIVACY_URL = 'https://github.com/cagustinenriquez/knet/blob/dev/PRIVACY.md';
-document.querySelectorAll('.privacy-link').forEach((a) => a.addEventListener('click', (e) => {
-  e.preventDefault();
-  window.knet.openUrl(PRIVACY_URL);
-}));
+// Privacy policy and license links (registration screen and Settings).
+const DOC_URLS = {
+  '.privacy-link': 'https://github.com/cagustinenriquez/knet/blob/dev/PRIVACY.md',
+  '.license-link': 'https://github.com/cagustinenriquez/knet/blob/dev/LICENSE',
+};
+for (const [sel, url] of Object.entries(DOC_URLS)) {
+  document.querySelectorAll(sel).forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.knet.openUrl(url);
+  }));
+}
