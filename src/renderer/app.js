@@ -32,6 +32,9 @@ const state = {
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function safeSet(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } }
 
+// Apply the saved theme right away so the app doesn't flash the default theme first.
+if (['dark', 'dracula', 'pink', 'pride'].includes(safeGet('theme'))) document.documentElement.dataset.theme = safeGet('theme');
+
 // ---------- helpers ----------
 
 function scoreClass(s) { return s >= 70 ? 'good' : s >= 45 ? 'ok' : 'low'; }
@@ -355,6 +358,40 @@ async function saveProfile(e) {
   await loadJobs();
 }
 
+// ---------- theme ----------
+
+const THEMES = [
+  { id: 'light', label: 'Light', bg: '#f4f5f8', accent: '#5865f2' },
+  { id: 'dark', label: 'Dark', bg: '#0c0e12', accent: '#7c8cff' },
+  { id: 'dracula', label: 'Dracula', bg: '#282a36', accent: '#bd93f9' },
+  { id: 'pink', label: 'Pink', bg: '#fdf3f7', accent: '#e0457b' },
+  // Swatch: trans flag stripes, then non-binary flag stripes.
+  { id: 'pride', label: 'Pride', bg: '#f5f3fb', accent: '#8f4cc9',
+    swatch: 'linear-gradient(#5bcefa 0 20%, #f5a9b8 20% 40%, #fff 40% 60%, #f5a9b8 60% 80%, #5bcefa 80%) left / 50% 100% no-repeat, '
+      + 'linear-gradient(#fcf434 0 25%, #fff 25% 50%, #9c59d1 50% 75%, #2c2c2c 75%) right / 50% 100% no-repeat' },
+];
+
+function applyTheme(id) {
+  const theme = THEMES.some((t) => t.id === id) ? id : 'light';
+  if (theme === 'light') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  safeSet('theme', theme); // read at startup, before settings load, to avoid a flash
+  return theme;
+}
+
+function renderThemePicker() {
+  const current = state.settings.theme || 'light';
+  $('#themePicker').replaceChildren(...THEMES.map((t) => h('button', {
+    type: 'button', role: 'radio', 'aria-checked': String(t.id === current),
+    class: `theme-opt${t.id === current ? ' active' : ''}`,
+    onclick: async () => {
+      state.settings.theme = applyTheme(t.id);
+      renderThemePicker();
+      await window.knet.saveSettings({ theme: state.settings.theme });
+    },
+  }, h('span', { class: 'theme-swatch', style: `--sw-bg:${t.bg};--sw-accent:${t.accent}${t.swatch ? `;--sw:${t.swatch}` : ''}`, title: t.label }), t.label)));
+}
+
 // ---------- settings ----------
 
 function renderSettings() {
@@ -364,6 +401,7 @@ function renderSettings() {
   f.threshold.value = s.threshold;
   f.intervalMinutes.value = s.intervalMinutes;
   f.maxAgeDays.value = s.maxAgeDays;
+  renderThemePicker();
   $('#sourceList').replaceChildren(...Object.entries(state.sources).map(([k, src]) =>
     h('label', {}, h('input', { type: 'checkbox', name: `src-${k}`, checked: s.sources[k] !== false }), src.label)));
 }
@@ -613,6 +651,7 @@ function showView(name) {
 
 async function init() {
   const s = await window.knet.getState();
+  applyTheme(s.settings?.theme);
   Object.assign(state, { profile: s.profile, settings: s.settings, sources: s.sources, platforms: s.platforms, boardUrls: s.boardUrls });
 
   setupResizers();

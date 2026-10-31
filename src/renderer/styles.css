@@ -1,47 +1,88 @@
-/* ---------- design tokens ---------- */
+/* ---------- design tokens ----------
+   Themes: light (default, :root), dark and dracula (html[data-theme]). Every color in this
+   file comes from these variables. */
 :root {
-  color-scheme: dark;
-  --bg: #0c0e12;
-  --bg-2: #101319;
-  --panel: #15181f;
-  --panel-2: #1c2029;
-  --panel-3: #232836;
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.13);
-  --text: #eceef3;
-  --muted: #8d95a6;
-  --accent: #7c8cff;
-  --accent-2: #b37bff;
-  --accent-soft: rgba(124, 140, 255, 0.16);
+  color-scheme: light;
+  --bg: #f4f5f8;
+  --bg-2: #eceef3;
+  --panel: #ffffff;
+  --panel-2: #f3f4f7;
+  --panel-3: #e9ebf1;
+  --line: rgba(17, 24, 39, 0.08);
+  --line-strong: rgba(17, 24, 39, 0.15);
+  --text: #171a21;
+  --muted: #6a7282;
+  --accent: #5865f2;
+  --accent-2: #9b51e0;
+  --accent-soft: rgba(88, 101, 242, 0.12);
   --grad: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-  --good: #3dd6a0;
-  --ok: #f7b955;
-  --low: #7d8597;
-  --danger: #ff6b6b;
-  --scroll: rgba(255, 255, 255, 0.16);
-  --scroll-hover: rgba(255, 255, 255, 0.32);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -6px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.3), 0 18px 48px -12px rgba(0, 0, 0, 0.6);
+  --good: #0f9f6e;
+  --ok: #c9850a;
+  --low: #8a91a0;
+  --danger: #e5484d;
+  --scroll: rgba(17, 24, 39, 0.18);
+  --scroll-hover: rgba(17, 24, 39, 0.36);
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
+  --shadow: 0 1px 2px rgba(17, 24, 39, 0.05), 0 8px 24px -8px rgba(17, 24, 39, 0.14);
+  --shadow-lg: 0 2px 6px rgba(17, 24, 39, 0.06), 0 18px 48px -14px rgba(17, 24, 39, 0.22);
   --r-sm: 8px;
   --r: 12px;
   --r-lg: 16px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --fast: 140ms;
 }
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --bg: #f4f5f8; --bg-2: #eceef3; --panel: #ffffff; --panel-2: #f3f4f7; --panel-3: #e9ebf1;
-    --line: rgba(17, 24, 39, 0.08); --line-strong: rgba(17, 24, 39, 0.15);
-    --text: #171a21; --muted: #6a7282;
-    --accent: #5865f2; --accent-2: #9b51e0; --accent-soft: rgba(88, 101, 242, 0.12);
-    --good: #0f9f6e; --ok: #c9850a; --low: #8a91a0; --danger: #e5484d;
-    --scroll: rgba(17, 24, 39, 0.18); --scroll-hover: rgba(17, 24, 39, 0.36);
-    --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
-    --shadow: 0 1px 2px rgba(17, 24, 39, 0.05), 0 8px 24px -8px rgba(17, 24, 39, 0.14);
-    --shadow-lg: 0 2px 6px rgba(17, 24, 39, 0.06), 0 18px 48px -14px rgba(17, 24, 39, 0.22);
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c0e12; --bg-2: #101319; --panel: #15181f; --panel-2: #1c2029; --panel-3: #232836;
+  --line: rgba(255, 255, 255, 0.07); --line-strong: rgba(255, 255, 255, 0.13);
+  --text: #eceef3; --muted: #8d95a6;
+  --accent: #7c8cff; --accent-2: #b37bff; --accent-soft: rgba(124, 140, 255, 0.16);
+  --good: #3dd6a0; --ok: #f7b955; --low: #7d8597; --danger: #ff6b6b;
+  --scroll: rgba(255, 255, 255, 0.16); --scroll-hover: rgba(255, 255, 255, 0.32);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -6px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.3), 0 18px 48px -12px rgba(0, 0, 0, 0.6);
+}
+/* Pink: soft and light. */
+:root[data-theme="pink"] {
+  color-scheme: light;
+  --bg: #fdf3f7; --bg-2: #f9e8ef; --panel: #ffffff; --panel-2: #fcedf3; --panel-3: #f7dce7;
+  --line: rgba(90, 20, 50, 0.08); --line-strong: rgba(90, 20, 50, 0.16);
+  --text: #2b1621; --muted: #8b6476;
+  --accent: #e0457b; --accent-2: #b14fd8; --accent-soft: rgba(224, 69, 123, 0.13);
+  --good: #12936a; --ok: #c47f08; --low: #a3899a; --danger: #d63a3a;
+  --scroll: rgba(90, 20, 50, 0.18); --scroll-hover: rgba(90, 20, 50, 0.36);
+  --shadow-sm: 0 1px 2px rgba(90, 20, 50, 0.06);
+  --shadow: 0 1px 2px rgba(90, 20, 50, 0.05), 0 8px 24px -8px rgba(160, 40, 90, 0.16);
+  --shadow-lg: 0 2px 6px rgba(90, 20, 50, 0.06), 0 18px 48px -14px rgba(160, 40, 90, 0.24);
+}
+/* Pride: colors from the transgender flag (light blue, pink, white) and the
+   non-binary flag (yellow, white, purple, black), deepened where needed for readable contrast. */
+:root[data-theme="pride"] {
+  color-scheme: light;
+  --bg: #f5f3fb; --bg-2: #ece8f7; --panel: #ffffff; --panel-2: #f3f0fa; --panel-3: #e7e1f4;
+  --line: rgba(44, 30, 70, 0.08); --line-strong: rgba(44, 30, 70, 0.16);
+  --text: #1e1830; --muted: #6c6484;
+  --accent: #8f4cc9; --accent-2: #e2668f; --accent-soft: rgba(156, 89, 209, 0.14);
+  --grad: linear-gradient(135deg, #3aa9e0 0%, #e2668f 50%, #8f4cc9 100%);
+  --good: #0f9a8a; --ok: #b88d00; --low: #8a8399; --danger: #e5484d;
+  --scroll: rgba(44, 30, 70, 0.18); --scroll-hover: rgba(44, 30, 70, 0.36);
+  --shadow-sm: 0 1px 2px rgba(44, 30, 70, 0.06);
+  --shadow: 0 1px 2px rgba(44, 30, 70, 0.05), 0 8px 24px -8px rgba(91, 60, 150, 0.16);
+  --shadow-lg: 0 2px 6px rgba(44, 30, 70, 0.06), 0 18px 48px -14px rgba(91, 60, 150, 0.24);
+}
+/* Dracula palette: draculatheme.com */
+:root[data-theme="dracula"] {
+  color-scheme: dark;
+  --bg: #21222c; --bg-2: #252631; --panel: #282a36; --panel-2: #2f3241; --panel-3: #44475a;
+  --line: rgba(248, 248, 242, 0.08); --line-strong: rgba(248, 248, 242, 0.15);
+  --text: #f8f8f2; --muted: #9ea8d0;
+  --accent: #bd93f9; --accent-2: #ff79c6; --accent-soft: rgba(189, 147, 249, 0.18);
+  --good: #50fa7b; --ok: #f1fa8c; --low: #6272a4; --danger: #ff5555;
+  --scroll: rgba(248, 248, 242, 0.16); --scroll-hover: rgba(248, 248, 242, 0.32);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -6px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.3), 0 18px 48px -12px rgba(0, 0, 0, 0.6);
 }
 
 /* ---------- base ---------- */
@@ -426,3 +467,17 @@ body.locked #sidebarResizer { display: none; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .about { margin-top: 18px; }
+
+/* ---------- theme picker (Settings) ---------- */
+.theme-picker { display: flex; gap: 10px; flex-wrap: wrap; }
+.theme-opt {
+  display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; cursor: pointer;
+  border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--panel);
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+.theme-opt:hover { border-color: var(--accent); }
+.theme-opt.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.theme-swatch {
+  width: 34px; height: 24px; border-radius: 6px; border: 1px solid var(--line-strong);
+  background: var(--sw, linear-gradient(135deg, var(--sw-bg) 0 55%, var(--sw-accent) 55% 100%));
+}

@@ -20,6 +20,7 @@ const DEFAULTS = {
     exclude: [],      // keywords that disqualify a job (title/company)
   },
   settings: {
+    theme: 'light',         // light | dark | dracula | pink | pride
     intervalMinutes: 30,
     threshold: 60,          // minimum score to notify
     notifications: true,

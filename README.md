@@ -188,6 +188,13 @@ The list is read from the `dev` branch. Set `KNET_APPROVED_URL` to use another U
 testing). Entries are validated before use, since the file is public. You can run an audit
 locally: `ISSUE_BODY="$(cat issue.md)" node scripts/review-source.js check`.
 
+## Themes
+
+Settings → Theme: **Light** (default), **Dark**, **Dracula**, **Pink** or
+**Pride** (colors from the transgender and non-binary flags). The choice applies right away
+and is saved with your settings. All colors are variables at the top of
+`src/renderer/styles.css`, so adding a theme means one more `[data-theme]` block.
+
 ## Layout
 
 ```

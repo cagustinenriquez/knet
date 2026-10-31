@@ -23,6 +23,9 @@ let quitting = false;
 
 // ---------- window & tray ----------
 
+// Window background before the page paints, per theme (matches --bg in styles.css).
+const THEME_BG = { light: '#f4f5f8', dark: '#0c0e12', dracula: '#21222c', pink: '#fdf3f7', pride: '#f5f3fb' };
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1180,
@@ -31,7 +34,7 @@ function createWindow() {
     minHeight: 520,
     title: 'OkNetwork',
     icon: ICON,
-    backgroundColor: '#0c0e12',
+    backgroundColor: THEME_BG[store.data.settings.theme] || THEME_BG.light,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
@@ -279,7 +282,9 @@ function registerIpc() {
   });
 
   ipcMain.handle('save-settings', (_e, settings) => {
+    if ('theme' in settings && !THEME_BG[settings.theme]) delete settings.theme;
     store.data.settings = { ...store.data.settings, ...settings };
+    if (settings.theme) win?.setBackgroundColor(THEME_BG[settings.theme]);
     store.save();
     schedule();
     updateTrayMenu();
@@ -367,6 +372,10 @@ function registerIpc() {
 }
 
 // ---------- app lifecycle ----------
+
+// The snap's bundled graphics libraries can't load many host GPU drivers (Mesa errors,
+// GPU process crash loop). The UI is simple, so render in software inside a snap.
+if (process.env.SNAP) app.disableHardwareAcceleration();
 
 // The app's display name is "OkNetwork", but keep data where it has always been
 // (~/.config/knet on Linux) so renaming doesn't strand anyone's profile.
