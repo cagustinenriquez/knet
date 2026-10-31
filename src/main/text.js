@@ -37,4 +37,4 @@ function termRegex(term) {
   return new RegExp(`(?<![a-z0-9+#])${escapeRe(term.toLowerCase())}(?![a-z0-9+#]|\\.[a-z0-9])`, 'i');
 }
 
-module.exports = { stripHtml, termRegex };
+module.exports = { stripHtml, termRegex, fixMojibake };

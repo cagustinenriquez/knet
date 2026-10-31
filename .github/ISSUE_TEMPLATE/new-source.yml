@@ -1,0 +1,29 @@
+name: Suggest a job source
+description: A company careers page or a job board RSS feed for every knet user.
+title: "Source: "
+labels: ["source-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A bot checks the URL and comments with what it found. An admin then reviews it;
+        once it's labeled `approved`, every knet app picks it up on its next check.
+  - type: input
+    id: url
+    attributes:
+      label: Careers page or RSS feed URL
+      placeholder: https://jobs.lever.co/acme or https://example.com/jobs.rss
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Company or feed name
+      placeholder: Acme
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is it useful? (optional)
+      placeholder: Hires remote developers across LATAM.

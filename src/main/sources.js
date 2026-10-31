@@ -4,7 +4,8 @@
 // All four are free public APIs with no key. Their terms ask that you link back to
 // the original posting and credit them as the source, which the UI does.
 
-const { stripHtml } = require('./text');
+const { stripHtml, fixMojibake } = require('./text');
+const { fetchCompanies, normalizeGetOnBoard, http } = require('./ats');
 
 const UA = 'knet-desktop/0.1 (job alerts MVP)';
 const MAX_DESC = 8000;
@@ -108,19 +109,49 @@ const SOURCES = {
       }));
     },
   },
+  getonbrd: {
+    label: 'Get on Board',
+    homepage: 'https://www.getonbrd.com',
+    // LATAM-focused tech board. Newest postings from the tech categories.
+    async fetch() {
+      const cats = { programming: 2, 'sysadmin-devops-qa': 1, 'mobile-developer': 1, 'data-science-analytics': 1, 'machine-learning-ai': 1 };
+      const pages = Object.entries(cats).flatMap(([c, n]) => Array.from({ length: n }, (_, i) => [c, i + 1]));
+      const results = await Promise.all(pages.map(([c, page]) =>
+        http(`https://www.getonbrd.com/api/v0/categories/${c}/jobs?per_page=100&page=${page}&expand=["company","tags","seniority"]`)
+          .then((d) => d.data || []).catch(() => [])));
+      return results.flat().map((j) => normalizeGetOnBoard(j));
+    },
+  },
 };
 
-// Fetch every enabled source in parallel. One failing source doesn't stop the others.
-async function fetchAll(enabled) {
+// Fetch every enabled job board plus the company career boards, in parallel.
+// One failing source doesn't stop the others. `known` = ids already stored.
+async function fetchAll(settings, known = new Set()) {
+  const enabled = settings.sources || {};
   const names = Object.keys(SOURCES).filter((n) => enabled[n] !== false);
-  const results = await Promise.allSettled(names.map((n) => SOURCES[n].fetch()));
-  const jobs = [];
-  const errors = [];
-  results.forEach((r, i) => {
-    if (r.status === 'fulfilled') jobs.push(...r.value.filter((j) => j.title && j.url));
+  const [boardResults, companies] = await Promise.all([
+    Promise.allSettled(names.map((n) => SOURCES[n].fetch())),
+    enabled.companies !== false ? fetchCompanies(settings.companies || [], known) : { jobs: [], errors: [] },
+  ]);
+  const errors = [...companies.errors];
+  const raw = [...companies.jobs];
+  boardResults.forEach((r, i) => {
+    if (r.status === 'fulfilled') raw.push(...r.value);
     else errors.push(`${SOURCES[names[i]].label}: ${r.reason.message}`);
   });
+  const jobs = [];
+  for (const j of raw) {
+    if (!j || !j.title || !j.url) continue;
+    for (const k of ['title', 'company', 'location']) j[k] = fixMojibake(String(j[k] || '')).trim();
+    j.tags = j.tags || [];
+    j.description = j.description || '';
+    jobs.push(j);
+  }
   return { jobs, errors };
 }
 
-module.exports = { SOURCES, fetchAll };
+// Same company + title + location = same job (often cross-posted to several boards).
+// Location matters: many companies post one opening per country.
+const dupKey = (j) => `${j.company}|${j.title}|${j.location}`.toLowerCase().replace(/[^a-z0-9|]+/g, '');
+
+module.exports = { SOURCES, fetchAll, dupKey };

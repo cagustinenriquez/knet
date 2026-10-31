@@ -3,8 +3,12 @@
 const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, shell, nativeImage } = require('electron');
 const path = require('path');
 const { Store } = require('./store');
-const { SOURCES, fetchAll } = require('./sources');
+const { SOURCES, fetchAll, dupKey } = require('./sources');
+const { PLATFORMS, checkSource, http } = require('./ats');
+const { fetchApproved, syncApproved, suggestUrl } = require('./shared');
 const { scoreJob } = require('./matcher');
+const { profileError, normalizeEmail, isRegistered } = require('./profile');
+const { STAGES, onStatusChange, setStage, setNotes } = require('./applications');
 
 const ICON = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 
@@ -97,9 +101,15 @@ function rescoreAll() {
   }
 }
 
+// Which feed a job came from: "remotive" for a job board, "greenhouse:wizeline" for a company board.
+function feedKey(job) {
+  const parts = job.id.split(':');
+  return parts.length >= 3 ? `${parts[0]}:${parts[1]}` : parts[0];
+}
+
 function profileIsEmpty() {
   const p = store.data.profile;
-  return !p.skills.length && !p.titles.length;
+  return !isRegistered(p) || (!p.skills.length && !p.titles.length); // no alerts before registration
 }
 
 async function sync() {
@@ -109,33 +119,62 @@ async function sync() {
   updateTrayMenu();
   try {
     const { settings, profile } = store.data;
-    const { jobs, errors } = await fetchAll(settings.sources);
+    // Pick up sources other users suggested and an admin approved.
+    let sharedError = null;
+    try {
+      const { added, revoked } = syncApproved(settings, await fetchApproved(http));
+      if (revoked.length) {
+        // Drop a revoked source's jobs, except ones the user saved or applied to.
+        const gone = new Set(revoked);
+        for (const [id, j] of Object.entries(store.data.jobs)) {
+          if (gone.has(feedKey(j)) && !['saved', 'applied'].includes(j.status)) delete store.data.jobs[id];
+        }
+      }
+      if (added || revoked.length) send('settings-updated', settings);
+    } catch (e) {
+      // Offline, or no shared list published yet (404): keep what we have, change nothing.
+      if (e.message !== 'HTTP 404') sharedError = `Shared sources: ${e.message}`;
+    }
+    // Jobs we already have a description for don't need their detail pages fetched again.
+    const known = new Set(Object.keys(store.data.jobs).filter((id) => store.data.jobs[id].description));
+    const { jobs, errors } = await fetchAll(settings, known);
+    if (sharedError) errors.push(sharedError);
     const now = new Date().toISOString();
     const fresh = [];
-    // Same company + title = same job (often cross-posted to several boards).
-    const dupKey = (j) => `${j.company}|${j.title}`.toLowerCase().replace(/[^a-z0-9|]+/g, '');
-    const known = new Set(Object.values(store.data.jobs).map(dupKey));
+    const alertable = [];
+    const seenKeys = new Set(Object.values(store.data.jobs).map(dupKey));
+    // A feed's first load brings in all its existing postings. Those aren't "new", so
+    // only alert for feeds (a job board, or one company's board) we've loaded before.
+    const seeded = new Set(store.data.seededFeeds ||
+      (store.data.synced ? Object.values(store.data.jobs).map(feedKey) : []));
 
     for (const j of jobs) {
       const existing = store.data.jobs[j.id];
-      const m = scoreJob(profile, j);
       if (existing) {
-        Object.assign(existing, j, { score: m.score, match: m });
-      } else if (!known.has(dupKey(j))) {
-        known.add(dupKey(j));
-        store.data.jobs[j.id] = { ...j, score: m.score, match: m, firstSeen: now, status: 'new' };
+        // Some platforms send descriptions a few at a time; alert once one arrives.
+        const gotDescription = !existing.description && j.description;
+        if (!j.description) j.description = existing.description; // detail pages are fetched once
+        if (existing.postedAt < j.postedAt) j.postedAt = existing.postedAt; // posting dates never move forward
+        Object.assign(existing, j);
+        existing.match = scoreJob(profile, existing);
+        existing.score = existing.match.score;
+        if (gotDescription && existing.status === 'new' && !existing.alerted) alertable.push(existing);
+      } else if (!seenKeys.has(dupKey(j))) {
+        seenKeys.add(dupKey(j));
+        const match = scoreJob(profile, j);
+        store.data.jobs[j.id] = { ...j, score: match.score, match, firstSeen: now, status: 'new' };
         fresh.push(store.data.jobs[j.id]);
+        if (seeded.has(feedKey(j))) alertable.push(store.data.jobs[j.id]);
       }
     }
+    jobs.forEach((j) => seeded.add(feedKey(j)));
+    store.data.seededFeeds = [...seeded];
 
-    // The very first sync loads hundreds of existing postings. Show them in the
-    // app, but only notify about jobs that appear after that.
     const cutoff = Date.now() - settings.maxAgeDays * 86400000;
-    const alerts = store.data.synced && !profileIsEmpty()
-      ? fresh
-        .filter((j) => j.score >= settings.threshold && new Date(j.postedAt).getTime() >= cutoff)
-        .sort((a, b) => b.score - a.score)
-      : [];
+    const alerts = profileIsEmpty() ? [] : alertable
+      .filter((j) => !j.alerted && j.score >= settings.threshold && new Date(j.postedAt).getTime() >= cutoff)
+      .sort((a, b) => b.score - a.score);
+    alerts.forEach((j) => { j.alerted = true; });
 
     store.data.synced = true;
     store.data.lastSync = { at: now, added: fresh.length, fetched: jobs.length, matches: alerts.length, errors };
@@ -190,7 +229,13 @@ function registerIpc() {
     settings: store.data.settings,
     lastSync: store.data.lastSync,
     syncing,
-    sources: Object.fromEntries(Object.entries(SOURCES).map(([k, s]) => [k, { label: s.label, homepage: s.homepage }])),
+    sources: {
+      ...Object.fromEntries(Object.entries(SOURCES).map(([k, s]) => [k, { label: s.label, homepage: s.homepage }])),
+      companies: { label: 'Company career pages (list below)' },
+    },
+    platforms: Object.fromEntries(Object.entries(PLATFORMS).map(([k, p]) => [k, p.label])),
+    boardUrls: Object.fromEntries(store.data.settings.companies
+      .filter((c) => PLATFORMS[c.platform]).map((c) => [`${c.platform}:${c.slug}`, PLATFORMS[c.platform].boardUrl(c.slug)])),
   }));
 
   ipcMain.handle('get-jobs', () =>
@@ -198,11 +243,15 @@ function registerIpc() {
       .sort((a, b) => b.score - a.score || b.postedAt.localeCompare(a.postedAt)));
 
   ipcMain.handle('save-profile', (_e, profile) => {
-    store.data.profile = { ...store.data.profile, ...profile };
+    const next = { ...store.data.profile, ...profile };
+    const error = profileError(next);
+    if (error) return { ok: false, error };
+    next.email = normalizeEmail(next.email);
+    store.data.profile = next;
     rescoreAll();
     store.save();
     updateTrayMenu();
-    return true;
+    return { ok: true, profile: next };
   });
 
   ipcMain.handle('save-settings', (_e, settings) => {
@@ -216,13 +265,44 @@ function registerIpc() {
   ipcMain.handle('set-status', (_e, id, status) => {
     if (!store.data.jobs[id] || !['new', 'seen', 'saved', 'applied', 'dismissed'].includes(status)) return false;
     store.data.jobs[id].status = status;
+    onStatusChange(store.data.jobs[id], status);
     store.save();
     updateTrayMenu();
-    return true;
+    return store.data.jobs[id];
+  });
+
+  ipcMain.handle('set-stage', (_e, id, stage) => {
+    const job = store.data.jobs[id];
+    if (!job || !STAGES.includes(stage)) return null;
+    setStage(job, stage);
+    store.save();
+    return job;
+  });
+
+  ipcMain.handle('set-notes', (_e, id, notes) => {
+    const job = store.data.jobs[id];
+    if (!job) return null;
+    setNotes(job, notes);
+    store.save();
+    return job;
   });
 
   ipcMain.handle('sync-now', () => sync());
   ipcMain.handle('open-url', (_e, url) => openExternal(url));
+
+  // Paste a careers page URL → find its hiring platform and count its open jobs.
+  ipcMain.handle('detect-company', (_e, url) => checkSource(url));
+
+  // Open a pre-filled GitHub issue so an admin can review the source for everyone.
+  ipcMain.handle('suggest-source', (_e, key) => {
+    const c = store.data.settings.companies.find((x) => `${x.platform}:${x.slug}` === key);
+    if (!c || !PLATFORMS[c.platform]) return false;
+    const url = c.url || (c.platform === 'rss' ? `https://${c.slug}` : PLATFORMS[c.platform].boardUrl(c.slug));
+    openExternal(suggestUrl({ url, name: c.name }));
+    c.suggested = new Date().toISOString();
+    store.save();
+    return true;
+  });
   ipcMain.handle('test-notification', () => {
     new Notification({ title: 'knet notifications work', body: 'You will see alerts like this for new matches.', icon: ICON }).show();
   });
@@ -238,6 +318,9 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     store = new Store(app.getPath('userData'));
+    rescoreAll(); // matching rules may have changed since the last run
+    // Jobs marked "applied" before stages existed start at the Applied stage.
+    Object.values(store.data.jobs).forEach((j) => j.status === 'applied' && onStatusChange(j, 'applied'));
     registerIpc();
     createWindow();
     createTray();

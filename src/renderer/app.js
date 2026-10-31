@@ -20,6 +20,8 @@ const state = {
   profile: null,
   settings: null,
   sources: {},
+  platforms: {},
+  boardUrls: {},
   jobs: [],
   status: 'inbox',
   query: '',
@@ -39,6 +41,16 @@ function ago(iso) {
   if (s < 3600) return `${Math.max(1, Math.round(s / 60))}m ago`;
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
   return `${Math.round(s / 86400)}d ago`;
+}
+
+const STAGES = {
+  applied: 'Applied', screening: 'Screening', interview: 'Interview', offer: 'Offer',
+  rejected: 'Rejected', ghosted: 'No response', withdrawn: 'Withdrew',
+};
+const CLOSED = ['rejected', 'ghosted', 'withdrawn'];
+
+function shortDate(iso) {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 const STATUS_FILTERS = {
@@ -78,6 +90,7 @@ function renderList() {
     h('div', { style: 'min-width:0' },
       h('div', { class: 'title' }, j.title),
       h('div', { class: 'meta' }, `${j.company} · ${j.location || 'Remote'} · ${ago(j.postedAt)}`),
+      j.status === 'applied' && j.application ? h('div', { class: 'meta' }, `Stage: ${STAGES[j.application.stage]}`) : null,
       skills.length ? h('div', { class: 'tags' }, skills.slice(0, 5).map((s) => h('span', { class: 'tag hit' }, s))) : null)));
   }
 
@@ -101,14 +114,19 @@ async function selectJob(id) {
 function renderDetail(j) {
   const d = $('#jobDetail');
   const m = j.match || {};
-  const src = state.sources[j.source];
+  const fromCompany = j.id.split(':').length >= 3;
+  const src = fromCompany
+    ? { label: `${j.company} careers (${state.platforms[j.source] || j.source})`, homepage: j.url }
+    : state.sources[j.source];
   const statusBtn = (status, label) => h('button', {
     class: `btn${j.status === status ? ' on' : ''}`,
     onclick: async () => {
       const next = j.status === status ? 'seen' : status;
-      await window.knet.setStatus(j.id, next);
+      const updated = await window.knet.setStatus(j.id, next);
+      if (updated) Object.assign(j, updated);
       j.status = next;
       renderList();
+      renderBoard();
       renderDetail(j);
     },
   }, j.status === status ? `✓ ${label}` : label);
@@ -127,6 +145,7 @@ function renderDetail(j) {
       statusBtn('saved', 'Save'),
       statusBtn('applied', 'Applied'),
       statusBtn('dismissed', 'Not interested')),
+    j.status === 'applied' && j.application ? applicationSection(j) : null,
 
     h('h3', {}, 'Why it matches'),
     m.excluded
@@ -153,11 +172,92 @@ function renderDetail(j) {
   d.scrollTop = 0;
 }
 
+// ---------- applications ----------
+
+async function changeStage(j, stage) {
+  const updated = await window.knet.setStage(j.id, stage);
+  if (!updated) return;
+  Object.assign(j, updated);
+  renderBoard();
+  if (state.selectedId === j.id) renderDetail(j);
+}
+
+function applicationSection(j) {
+  const a = j.application;
+  let timer;
+  const notes = h('textarea', {
+    class: 'notes', rows: 4, placeholder: 'Recruiter name, salary discussed, interview dates, follow-ups…',
+    oninput: (e) => {
+      a.notes = e.target.value;
+      clearTimeout(timer);
+      timer = setTimeout(() => window.knet.setNotes(j.id, a.notes), 600);
+    },
+  });
+  notes.value = a.notes || '';
+  return h('div', { class: 'application' },
+    h('h3', {}, 'Application stage'),
+    h('div', { class: 'stages' }, Object.entries(STAGES).map(([k, label]) =>
+      h('button', {
+        class: `stage-btn${a.stage === k ? ' on' : ''}${CLOSED.includes(k) ? ' closed' : ''}`,
+        onclick: () => changeStage(j, k),
+      }, label))),
+    h('ol', { class: 'timeline' }, [...a.history].reverse().map((e) =>
+      h('li', {}, h('b', {}, STAGES[e.stage] || e.stage), h('span', { class: 'muted' }, ` · ${shortDate(e.at)} (${ago(e.at)})`)))),
+    h('h3', {}, 'Notes'),
+    notes);
+}
+
+function renderBoard() {
+  const apps = state.jobs.filter((j) => j.status === 'applied' && j.application);
+  const active = apps.filter((j) => !CLOSED.includes(j.application.stage)).length;
+  $('#appCount').hidden = !active;
+  $('#appCount').textContent = active;
+
+  const lastChange = (j) => j.application.history.at(-1).at;
+  const card = (j) => h('div', {
+    class: 'app-card',
+    onclick: (e) => { if (e.target.tagName !== 'SELECT') openApplication(j.id); },
+  },
+  h('div', { class: 'title' }, j.title),
+  h('div', { class: 'meta' }, j.company),
+  h('div', { class: 'app-foot' },
+    h('span', { class: 'muted' }, `${CLOSED.includes(j.application.stage) ? STAGES[j.application.stage] + ' · ' : ''}${ago(lastChange(j))}`),
+    (() => {
+      const sel = h('select', { title: 'Move to stage', onchange: (e) => changeStage(j, e.target.value) },
+        Object.entries(STAGES).map(([k, label]) => h('option', { value: k }, label)));
+      sel.value = j.application.stage;
+      return sel;
+    })()));
+
+  const columns = [
+    ...['applied', 'screening', 'interview', 'offer'].map((k) => ({ label: STAGES[k], stages: [k] })),
+    { label: 'Closed', stages: CLOSED },
+  ];
+  $('#board').replaceChildren(...columns.map((c) => {
+    const items = apps.filter((j) => c.stages.includes(j.application.stage))
+      .sort((a, b) => lastChange(b).localeCompare(lastChange(a)));
+    return h('div', { class: `column${c.label === 'Closed' ? ' closed' : ''}` },
+      h('div', { class: 'column-head' }, c.label, h('span', { class: 'muted' }, items.length)),
+      items.length ? items.map(card) : h('div', { class: 'muted column-empty' }, apps.length ? '—' : c.stages[0] === 'applied' ? 'Click "Applied" on a job to track it here.' : ''));
+  }));
+}
+
+function openApplication(id) {
+  showView('matches');
+  state.status = 'applied';
+  $$('#statusTabs button').forEach((x) => x.classList.toggle('active', x.dataset.status === 'applied'));
+  selectJob(id);
+  $(`#jobList [data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' });
+}
+
 async function loadJobs() {
   state.jobs = await window.knet.getJobs();
   renderList();
+  renderBoard();
+  renderCompanies(); // job counts per company
   const sel = state.jobs.find((j) => j.id === state.selectedId);
-  if (sel) renderDetail(sel);
+  // Don't redraw under someone typing notes; a background check can finish mid-sentence.
+  if (sel && !document.activeElement?.classList.contains('notes')) renderDetail(sel);
 }
 
 // ---------- chip inputs (profile lists) ----------
@@ -193,6 +293,7 @@ let chipGetters = {};
 function renderProfile() {
   const f = $('#profileForm');
   const p = state.profile;
+  f.email.value = p.email || '';
   f.name.value = p.name || '';
   f.years.value = p.years ?? 0;
   f.remoteOnly.checked = !!p.remoteOnly;
@@ -205,13 +306,16 @@ async function saveProfile(e) {
   e.preventDefault();
   const f = $('#profileForm');
   const profile = {
+    email: f.email.value.trim(),
     name: f.name.value.trim(),
     years: Number(f.years.value) || 0,
     remoteOnly: f.remoteOnly.checked,
   };
   for (const [k, get] of Object.entries(chipGetters)) profile[k] = get();
-  await window.knet.saveProfile(profile);
-  state.profile = { ...state.profile, ...profile };
+  const r = await window.knet.saveProfile(profile);
+  $('#profileError').textContent = r.ok ? '' : r.error;
+  if (!r.ok) { f.email.focus(); return; }
+  state.profile = r.profile;
   $('#onboarding').hidden = !!(profile.skills.length || profile.titles.length);
   flash('#profileSaved', 'Saved. Scores updated.');
   await loadJobs();
@@ -228,6 +332,86 @@ function renderSettings() {
   f.maxAgeDays.value = s.maxAgeDays;
   $('#sourceList').replaceChildren(...Object.entries(state.sources).map(([k, src]) =>
     h('label', {}, h('input', { type: 'checkbox', name: `src-${k}`, checked: s.sources[k] !== false }), src.label)));
+}
+
+// ---------- company career pages ----------
+
+const companyKey = (c) => `${c.platform}:${c.slug}`;
+
+async function saveCompanies(msg) {
+  await window.knet.saveSettings({ companies: state.settings.companies, removedShared: state.settings.removedShared || [] });
+  renderCompanies();
+  if (msg) companyMsg(msg, 'ok');
+}
+
+function companyMsg(text, kind = '') {
+  const el = $('#companyMsg');
+  el.textContent = text;
+  el.className = `hint ${kind}`;
+}
+
+function renderCompanies() {
+  const list = state.settings.companies || [];
+  const counts = {};
+  for (const j of state.jobs) {
+    const parts = j.id.split(':');
+    if (parts.length >= 3) counts[`${parts[0]}:${parts[1]}`] = (counts[`${parts[0]}:${parts[1]}`] || 0) + 1;
+  }
+  $('#companyList').replaceChildren(...[...list]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((c) => h('li', {},
+      h('input', {
+        type: 'checkbox', checked: c.enabled !== false, title: 'Check this company',
+        onchange: (e) => { c.enabled = e.target.checked; saveCompanies(); },
+      }),
+      h('span', { class: 'name' },
+        state.boardUrls[companyKey(c)]
+          ? h('a', { href: '#', onclick: (e) => { e.preventDefault(); window.knet.openUrl(state.boardUrls[companyKey(c)]); } }, c.name)
+          : c.name),
+      c.shared ? h('span', { class: 'pill', title: 'Approved by an admin for all knet users' }, 'shared') : null,
+      c.custom && !c.shared ? h('button', {
+        type: 'button', class: 'btn small', title: 'Open a pre-filled GitHub issue so an admin can add this for everyone',
+        onclick: async () => {
+          await window.knet.suggestSource(companyKey(c));
+          c.suggested = new Date().toISOString();
+          renderCompanies();
+          companyMsg(`Opened a suggestion for ${c.name} on GitHub. Submit the issue there; once an admin approves it, everyone gets it.`, 'ok');
+        },
+      }, c.suggested ? 'Suggested ✓' : 'Suggest') : null,
+      h('span', { class: 'platform' }, `${state.platforms[c.platform] || c.platform} · ${counts[companyKey(c)] || 0} jobs`),
+      h('button', {
+        type: 'button', class: 'remove', title: `Remove ${c.name}`,
+        onclick: () => {
+          state.settings.companies = state.settings.companies.filter((x) => x !== c);
+          // Don't let the shared list add it back on the next check.
+          if (c.shared) state.settings.removedShared = [...(state.settings.removedShared || []), companyKey(c)];
+          saveCompanies(`Removed ${c.name}.`);
+        },
+      }, '×'))));
+}
+
+async function addCompany() {
+  const url = $('#companyUrl').value.trim();
+  if (!url) return companyMsg('Paste a careers page URL first.', 'error');
+  const btn = $('#addCompany');
+  btn.disabled = true;
+  companyMsg('Looking for the job board…');
+  try {
+    const r = await window.knet.detectCompany(url);
+    if (!r.ok) return companyMsg(r.error, 'error');
+    const exists = state.settings.companies.find((c) => companyKey(c) === companyKey(r));
+    if (exists) return companyMsg(`${exists.name} is already in the list.`, 'error');
+    const name = $('#companyName').value.trim() || r.name ||
+      r.slug.split(/[|/]/)[0].replace(/[-_]+/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+    state.settings.companies.push({ name: name.slice(0, 100), platform: r.platform, slug: r.slug, url, enabled: true, custom: true });
+    state.settings.removedShared = (state.settings.removedShared || []).filter((k) => k !== companyKey(r));
+    state.boardUrls[companyKey(r)] = r.boardUrl;
+    $('#companyUrl').value = '';
+    $('#companyName').value = '';
+    await saveCompanies(`Added ${name}: ${r.label === 'RSS feed' ? 'RSS feed' : `${r.label} board`} with ${r.jobCount} jobs. They'll appear after the next check. Press Suggest to share it with everyone.`);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function saveSettings(e) {
@@ -269,14 +453,35 @@ function renderSync({ syncing, lastSync }) {
 
 // ---------- wiring ----------
 
+// ---------- registration ----------
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/; // same check as src/main/profile.js
+const isRegistered = () => EMAIL.test((state.profile.email || '').trim());
+
+async function register(e) {
+  e.preventDefault();
+  const f = $('#registerForm');
+  const email = f.email.value.trim();
+  const err = $('#registerError');
+  if (!email) { err.textContent = 'Email is required.'; f.email.focus(); return; }
+  const r = await window.knet.saveProfile({ email, name: f.name.value.trim() || state.profile.name });
+  if (!r.ok) { err.textContent = r.error; f.email.focus(); return; }
+  err.textContent = '';
+  state.profile = r.profile;
+  renderProfile();
+  document.body.classList.remove('locked');
+  showView(state.profile.skills.length || state.profile.titles.length ? 'matches' : 'profile');
+}
+
 function showView(name) {
+  if (!isRegistered()) name = 'register';
   $$('.view').forEach((v) => { v.hidden = v.id !== `view-${name}`; });
   $$('.nav').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
 }
 
 async function init() {
   const s = await window.knet.getState();
-  Object.assign(state, { profile: s.profile, settings: s.settings, sources: s.sources });
+  Object.assign(state, { profile: s.profile, settings: s.settings, sources: s.sources, platforms: s.platforms, boardUrls: s.boardUrls });
 
   $$('.nav').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
   $$('[data-goto]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); showView(a.dataset.goto); }));
@@ -299,11 +504,15 @@ async function init() {
 
   $('#syncBtn').addEventListener('click', () => window.knet.syncNow());
   $('#profileForm').addEventListener('submit', saveProfile);
+  $('#registerForm').addEventListener('submit', register);
   $('#settingsForm').addEventListener('submit', saveSettings);
   $('#testNotif').addEventListener('click', () => window.knet.testNotification());
+  $('#addCompany').addEventListener('click', addCompany);
+  $('#companyUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addCompany(); } });
 
   window.knet.on('sync-status', renderSync);
   window.knet.on('jobs-updated', loadJobs);
+  window.knet.on('settings-updated', (settings) => { state.settings.companies = settings.companies; renderCompanies(); });
   window.knet.on('focus-job', async (id) => {
     showView('matches');
     await loadJobs();
@@ -317,7 +526,12 @@ async function init() {
   window.knet.on('sync-status', (x) => { if (x.lastSync) state.lastSync = x.lastSync; });
   state.lastSync = s.lastSync;
   await loadJobs();
-  if (!state.profile.skills.length && !state.profile.titles.length) showView('profile');
+  if (!isRegistered()) {
+    document.body.classList.add('locked');
+    $('#registerForm').name.value = state.profile.name || '';
+    showView('register');
+    $('#registerForm').email.focus();
+  } else if (!state.profile.skills.length && !state.profile.titles.length) showView('profile');
 }
 
 init();

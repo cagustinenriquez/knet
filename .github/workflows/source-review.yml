@@ -1,0 +1,135 @@
+# Reviews shared job sources. See README → "Shared sources".
+# - Issue opened/edited (label source-request): audit the URL and comment with the report.
+# - Labeled "approved": re-audit; add to sources/approved.json unless a check fails.
+#   Labeled "approved-override": add it even if a check fails.
+# - Labeled "revoke": remove the source from sources/approved.json (apps drop it next check).
+# - Weekly: re-audit every shared source; open a "source-audit" issue for each failure.
+# Only people with triage access can add labels, so they're the admins.
+name: Source review
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  schedule:
+    - cron: "17 9 * * 1"  # Mondays 09:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: source-review-${{ github.event.issue.number || 'audit' }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: >-
+      github.event_name == 'issues' && github.event.action != 'labeled' &&
+      contains(github.event.issue.labels.*.name, 'source-request') && github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Audit the URL
+        run: node scripts/review-source.js check > comment.md
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+      - name: Comment
+        run: gh issue comment "$NUMBER" --body-file comment.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+
+  approve:
+    if: >-
+      github.event_name == 'issues' && github.event.action == 'labeled' &&
+      (github.event.label.name == 'approved' || github.event.label.name == 'approved-override') &&
+      contains(github.event.issue.labels.*.name, 'source-request')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: approved-json  # one writer of approved.json at a time
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Re-audit and add to the shared list
+        id: review
+        run: node scripts/review-source.js approve > comment.md
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          OVERRIDE: ${{ contains(github.event.issue.labels.*.name, 'approved-override') }}
+      - name: Commit
+        if: steps.review.outputs.added == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sources/approved.json
+          git commit -m "Approve shared source from #$NUMBER"
+          git push
+        env:
+          NUMBER: ${{ github.event.issue.number }}
+      - name: Comment and close
+        run: |
+          gh issue comment "$NUMBER" --body-file comment.md
+          if [ "$OK" = "true" ]; then
+            gh issue close "$NUMBER" --reason completed
+          else
+            gh issue edit "$NUMBER" --remove-label approved --remove-label approved-override || true
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          OK: ${{ steps.review.outputs.ok }}
+
+  revoke:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'revoke'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: approved-json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Remove from the shared list
+        id: review
+        run: node scripts/review-source.js revoke > comment.md
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+      - name: Commit
+        if: steps.review.outputs.removed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sources/approved.json
+          git commit -m "Revoke shared source (#$NUMBER)"
+          git push
+        env:
+          NUMBER: ${{ github.event.issue.number }}
+      - name: Comment and close
+        run: |
+          gh issue comment "$NUMBER" --body-file comment.md
+          if [ "$REMOVED" = "true" ]; then gh issue close "$NUMBER" --reason completed; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          REMOVED: ${{ steps.review.outputs.removed }}
+
+  audit-all:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Re-audit every shared source
+        run: node scripts/review-source.js audit-all
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

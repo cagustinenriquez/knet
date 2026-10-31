@@ -5,6 +5,7 @@
 // Any "exclude" keyword found in the title or company drops the score to 0.
 
 const { termRegex } = require('./text');
+const { scoreLocation } = require('./location');
 
 const WEIGHTS = { skills: 45, title: 25, experience: 15, soft: 10, location: 5 };
 
@@ -84,10 +85,16 @@ function scoreSkills(profile, job) {
 }
 
 // "Front-end" / "front end" / "frontend" → "frontend", etc.
-const normTitle = (s) => s.toLowerCase()
+// Also maps common Spanish job words to English (many LATAM postings are in Spanish).
+const normTitle = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/\b(front|back)[\s-]+end\b/g, '$1end')
   .replace(/\bfull[\s-]+stack\b/g, 'fullstack')
-  .replace(/\bdev\s*ops\b/g, 'devops');
+  .replace(/\bdev\s*ops\b/g, 'devops')
+  .replace(/\bdesarrollador(?:a|es|\/a|\(a\))?\b/g, 'developer')
+  .replace(/\bingenier[oa](?:\/a|\(a\))?\b/g, 'engineer')
+  .replace(/\bprogramador(?:a|\/a|\(a\))?\b/g, 'programmer')
+  .replace(/\b(?:lider|lead) tecnic[oa]\b/g, 'tech lead')
+  .replace(/\bde software\b/g, 'software');
 
 // Words that appear in most tech titles. They count a little, but can't make a match alone.
 const GENERIC = new Set(['developer', 'engineer', 'software', 'programmer', 'specialist', 'consultant']);
@@ -118,17 +125,18 @@ function scoreTitle(profile, job) {
 // Returns the seniority a job asks for as a [minYears, maxYears] range, or null.
 function inferExperience(job) {
   const text = `${job.title} ${job.level || ''}`.toLowerCase();
-  const yrs = job.description.match(/(\d{1,2})\s*\+?\s*(?:-\s*\d{1,2}\s*)?(?:years|yrs)/i);
+  const yrs = job.description.match(/(\d{1,2})\s*\+?\s*(?:-\s*\d{1,2}\s*)?(?:years|yrs|años|anos)/i);
   if (yrs) {
     const n = parseInt(yrs[1], 10);
     if (n > 0 && n < 25) return { range: [n, n + 4], source: `${n}+ years` };
   }
   if (/\b(intern|internship|werkstudent|working student|trainee)\b/.test(text)) return { range: [0, 1], source: 'internship' };
   if (/\b(junior|jr\.?|entry|graduate)\b/.test(text)) return { range: [0, 2], source: 'junior' };
-  if (/\b(principal|staff|director|head of|vp)\b/.test(text)) return { range: [8, 30], source: 'staff+' };
-  if (/\b(lead|manager)\b/.test(text)) return { range: [6, 30], source: 'lead' };
+  if (/\b(principal|staff|director|head of|vp|expert)\b/.test(text)) return { range: [8, 30], source: 'staff+' };
+  if (/\b(lead|manager|lider)\b/.test(text)) return { range: [6, 30], source: 'lead' };
+  // "Semi Senior"/"SSr" (common in LATAM) must be checked before "Senior".
+  if (/\b(mid|midweight|intermediate|semi[\s-]?senior|ssr)\b/.test(text)) return { range: [2, 6], source: 'mid' };
   if (/\b(senior|sr\.?)\b/.test(text)) return { range: [5, 30], source: 'senior' };
-  if (/\b(mid|midweight|intermediate)\b/.test(text)) return { range: [2, 5], source: 'mid' };
   return null;
 }
 
@@ -151,16 +159,6 @@ function scoreSoft(profile, job) {
   return { value: Math.min(1, matched.length / Math.min(soft.length, 3)), matched };
 }
 
-function scoreLocation(profile, job) {
-  const locs = (profile.locations || []).map((l) => l.toLowerCase());
-  const where = `${job.location} ${job.remote ? 'remote' : ''}`.toLowerCase();
-  if (profile.remoteOnly && !job.remote) return { value: 0, hardFail: true };
-  if (job.remote && (!locs.length || /worldwide|anywhere|global/.test(where))) return { value: 1 };
-  if (!locs.length) return { value: 0.7 };
-  if (locs.some((l) => where.includes(l))) return { value: 1 };
-  return { value: job.remote ? 0.5 : 0.2 };
-}
-
 function scoreJob(profile, job) {
   const exclude = (profile.exclude || []).find((x) => termRegex(x).test(`${job.title} ${job.company}`));
   if (exclude) return { score: 0, excluded: exclude, reasons: [`Excluded keyword: ${exclude}`] };
@@ -170,7 +168,8 @@ function scoreJob(profile, job) {
   const e = scoreExperience(profile, job);
   const so = scoreSoft(profile, job);
   const l = scoreLocation(profile, job);
-  if (l.hardFail) return { score: 0, excluded: 'not remote', reasons: ['Not remote'] };
+  // A job you can't legally/practically take isn't a match, however good the skills fit.
+  if (l.hardFail) return { score: 0, excluded: 'location', reasons: [l.reason] };
 
   const score = Math.round(
     s.value * WEIGHTS.skills + t.value * WEIGHTS.title + e.value * WEIGHTS.experience +
@@ -182,6 +181,7 @@ function scoreJob(profile, job) {
   if (t.best && t.value >= 0.5) reasons.push(`Role fits "${t.best}"`);
   if (e.req) reasons.push(e.value >= 1 ? `Experience fits (${e.req})` : `Asks for ${e.req}`);
   if (so.matched.length) reasons.push(`Soft skills: ${so.matched.join(', ')}`);
+  if (l.reason) reasons.push(l.reason);
 
   return {
     score,

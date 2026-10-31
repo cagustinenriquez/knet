@@ -1,0 +1,4 @@
+{
+  "about": "Sources approved by a knet admin. Every knet app downloads this list. Don't edit by hand: label a source-request issue 'approved' and the review workflow adds it.",
+  "sources": []
+}

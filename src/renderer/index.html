@@ -11,6 +11,7 @@
     <div class="brand">knet<span>job alerts</span></div>
     <nav>
       <button class="nav active" data-view="matches">Matches <span id="newBadge" class="badge" hidden></span></button>
+      <button class="nav" data-view="applications">Applications <span id="appCount" class="count" hidden></span></button>
       <button class="nav" data-view="profile">My profile</button>
       <button class="nav" data-view="settings">Settings</button>
     </nav>
@@ -21,6 +22,19 @@
   </aside>
 
   <main>
+    <!-- REGISTER (shown until the profile has an email) -->
+    <section id="view-register" class="view" hidden>
+      <form id="registerForm" class="form register" novalidate>
+        <h1>Create your profile</h1>
+        <p class="muted">knet matches new job postings to your profile and notifies you. Start with your email.
+          It stays on this computer.</p>
+        <label>Email <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" /></label>
+        <label>Name <span class="hint">optional</span><input name="name" autocomplete="name" /></label>
+        <div id="registerError" class="hint error" role="alert"></div>
+        <div class="actions"><button class="btn primary" type="submit">Continue</button></div>
+      </form>
+    </section>
+
     <!-- MATCHES -->
     <section id="view-matches" class="view">
       <div id="onboarding" class="banner" hidden>
@@ -43,11 +57,21 @@
       </div>
     </section>
 
+    <!-- APPLICATIONS -->
+    <section id="view-applications" class="view" hidden>
+      <h1>Applications</h1>
+      <p class="muted">Jobs you marked as Applied. Change a stage from the menu on each card, or click a card for its timeline and notes.</p>
+      <div id="board" class="board"></div>
+    </section>
+
     <!-- PROFILE -->
     <section id="view-profile" class="view" hidden>
       <h1>My profile</h1>
       <p class="muted">This is what jobs are matched against. Press Enter after each item.</p>
-      <form id="profileForm" class="form">
+      <form id="profileForm" class="form" novalidate>
+        <label>Email <span class="hint">required</span>
+          <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+          <span id="profileError" class="hint error" role="alert"></span></label>
         <label>Name <input name="name" placeholder="Optional" /></label>
         <label>Roles I want <span class="hint">e.g. Frontend Developer, Data Engineer</span>
           <div class="chips" data-field="titles"></div></label>
@@ -75,6 +99,19 @@
         <label>Check for new jobs every (minutes) <input name="intervalMinutes" type="number" min="5" max="1440" /></label>
         <label>Only notify for jobs posted in the last (days) <input name="maxAgeDays" type="number" min="1" max="60" /></label>
         <fieldset><legend>Job sources</legend><div id="sourceList"></div></fieldset>
+        <fieldset>
+          <legend>Company pages &amp; feeds</legend>
+          <p class="hint">Paste a company's careers page (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee,
+            Breezy, BambooHR, Workday, Get on Board) or a job board's RSS feed. It's added for you right away; press
+            <b>Suggest</b> to send it to an admin, who can add it for every knet user. Changes here save right away.</p>
+          <div class="add-company">
+            <input id="companyUrl" placeholder="Careers page or RSS feed, e.g. acme.com/careers or weworkremotely.com/remote-jobs.rss" />
+            <input id="companyName" placeholder="Name (optional)" />
+            <button type="button" id="addCompany" class="btn">Add</button>
+          </div>
+          <div id="companyMsg" class="hint"></div>
+          <ul id="companyList" class="company-list"></ul>
+        </fieldset>
         <div class="actions">
           <button class="btn primary" type="submit">Save settings</button>
           <button class="btn" type="button" id="testNotif">Send test notification</button>

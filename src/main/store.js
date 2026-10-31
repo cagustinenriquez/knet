@@ -3,11 +3,13 @@
 
 const fs = require('fs');
 const path = require('path');
+const { DEFAULT_COMPANIES } = require('./companies');
 
-const MAX_JOBS = 3000;
+const MAX_JOBS = 6000;
 
 const DEFAULTS = {
   profile: {
+    email: '',        // required; set on the registration screen
     name: '',
     titles: [],       // desired roles, e.g. "Frontend Developer"
     skills: [],       // tech stack
@@ -22,11 +24,14 @@ const DEFAULTS = {
     threshold: 60,          // minimum score to notify
     notifications: true,
     maxAgeDays: 3,          // only notify for jobs posted recently
-    sources: { remotive: true, remoteok: true, arbeitnow: true, jobicy: true },
+    sources: { remotive: true, remoteok: true, arbeitnow: true, jobicy: true, getonbrd: true, companies: true },
+    companies: DEFAULT_COMPANIES, // { name, platform, slug, enabled, url?, custom?, shared?, suggested? }
+    removedShared: [],      // approved sources the user removed (so they don't come back)
   },
   jobs: {},       // id → job + { score, match, firstSeen, status }
   lastSync: null, // { at, added, errors[] }
   synced: false,  // false until the first fetch finishes (so we don't flood notifications)
+  seededFeeds: null, // feeds (job boards / company boards) already loaded once; see main.js
 };
 
 class Store {
