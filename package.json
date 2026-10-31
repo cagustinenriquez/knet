@@ -130,7 +130,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "buildUniversalInstaller": false
     }
   },
   "desktopName": "oknetwork.desktop"
