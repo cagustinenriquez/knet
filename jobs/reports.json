@@ -1,4 +1,5 @@
 {
   "about": "Reports on live job posts, by post issue number. Written by the job-posts workflow.",
-  "reports": {}
+  "reports": {},
+  "jobs": {}
 }
