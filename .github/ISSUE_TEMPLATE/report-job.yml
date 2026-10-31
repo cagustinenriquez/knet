@@ -1,0 +1,37 @@
+name: Report a job post
+description: Flag a job posted on knet as a scam, fake, misleading or otherwise wrong.
+title: "Report: "
+labels: ["job-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports are counted per person. When 3 different people report a post, it's hidden from
+        every knet app until an admin reviews it. Your report is public, like any GitHub issue.
+  - type: input
+    id: post
+    attributes:
+      label: Which post
+      description: The post's issue number or link.
+      placeholder: "#42"
+    validations:
+      required: true
+  - type: dropdown
+    id: reason
+    attributes:
+      label: Reason
+      options:
+        - Scam or fraud (asks for money, personal data, etc.)
+        - Fake company or poster
+        - Misleading (salary, location, role)
+        - Discriminatory
+        - Spam or duplicate
+        - Position already filled
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Optional. What did you notice?

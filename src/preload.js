@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('knet', {
   openUrl: (url) => ipcRenderer.invoke('open-url', url),
   detectCompany: (url) => ipcRenderer.invoke('detect-company', url),
   suggestSource: (key) => ipcRenderer.invoke('suggest-source', key),
+  reportPost: (id) => ipcRenderer.invoke('report-post', id),
   checkPost: (post) => ipcRenderer.invoke('check-post', post),
   openPostForm: (post) => ipcRenderer.invoke('open-post-form', post),
   testNotification: () => ipcRenderer.invoke('test-notification'),

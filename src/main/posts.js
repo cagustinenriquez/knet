@@ -89,8 +89,10 @@ function validPosts(data, now = Date.now()) {
       id: j.id, source: 'posted', title: j.title, company: j.company, location: j.location, remote: !!j.remote,
       type: str(j.type, 40) ? j.type : '', level: str(j.level, 40) ? j.level : '', salary: str(j.salary, 200) ? j.salary : '',
       tags: Array.isArray(j.tags) ? j.tags.filter((t) => str(t, 40)).slice(0, 15) : [],
-      description: j.description, url: j.url, postedAt: new Date(j.postedAt).toISOString(),
+      description: j.description, format: 'markdown', url: j.url, postedAt: new Date(j.postedAt).toISOString(),
+      issue: Number.isInteger(j.issue) ? j.issue : null,
       issueUrl: Number.isInteger(j.issue) ? `https://github.com/${REPO}/issues/${j.issue}` : '',
+      verified: j.verified === true,
     }));
 }
 
@@ -107,4 +109,10 @@ function postFormUrl(post, { withDescription = true } = {}) {
   return `https://github.com/${REPO}/issues/new?${q}`;
 }
 
-module.exports = { POSTED_URL, LIFETIME_DAYS, FIELDS, parseJobIssue, toEntry, validPosts, postFormUrl, applyLink };
+// Pre-filled "Report a job post" issue.
+function reportFormUrl({ issue, title, company }) {
+  const q = new URLSearchParams({ template: 'report-job.yml', title: `Report: #${issue} ${title} at ${company}`.slice(0, 200), post: `#${issue}` });
+  return `https://github.com/${REPO}/issues/new?${q}`;
+}
+
+module.exports = { reportFormUrl, POSTED_URL, LIFETIME_DAYS, FIELDS, parseJobIssue, toEntry, validPosts, postFormUrl, applyLink };

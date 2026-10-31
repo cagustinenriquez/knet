@@ -95,7 +95,8 @@ function renderList() {
     scoreRing(j.score),
     h('div', { style: 'min-width:0' },
       h('div', { class: 'title' }, j.source === 'posted' ? h('span', { class: 'pill posted', title: 'Posted directly on knet' }, 'posted') : null, ' ', j.title),
-      h('div', { class: 'meta' }, `${j.company} · ${j.location || 'Remote'} · ${ago(j.postedAt)}`),
+      h('div', { class: 'meta' }, j.verified ? h('span', { class: 'verified', title: 'Poster verified by a knet admin' }, '✓ ') : null,
+        `${j.company} · ${j.location || 'Remote'} · ${ago(j.postedAt)}`),
       j.status === 'applied' && j.application ? h('div', { class: 'meta' }, `Stage: ${STAGES[j.application.stage]}`) : null,
       skills.length ? h('div', { class: 'tags' }, skills.slice(0, 5).map((s) => h('span', { class: 'tag hit' }, s))) : null)));
   }
@@ -148,12 +149,19 @@ function renderDetail(j) {
       scoreRing(j.score, 'big'),
       h('div', {},
         h('h2', {}, j.title),
-        h('div', { class: 'sub' }, [j.company, j.location, j.type, j.salary, `posted ${ago(j.postedAt)}`].filter(Boolean).join(' · ')))),
+        h('div', { class: 'sub' },
+          j.verified ? h('span', { class: 'pill verified-pill', title: 'This poster was verified by a knet admin' }, '✓ Verified') : null,
+          j.verified ? ' ' : null,
+          [j.company, j.location, j.type, j.salary, `posted ${ago(j.postedAt)}`].filter(Boolean).join(' · ')))),
     h('div', { class: 'row' },
       h('button', { class: 'btn primary', onclick: () => window.knet.openUrl(j.url) }, j.url.startsWith('mailto:') ? 'Apply by email ↗' : 'Open posting ↗'),
       statusBtn('saved', 'Save'),
       statusBtn('applied', 'Applied'),
-      statusBtn('dismissed', 'Not interested')),
+      statusBtn('dismissed', 'Not interested'),
+      j.source === 'posted' ? h('button', {
+        class: 'btn ghost-danger', title: 'Report this post as a scam, fake, misleading… (opens a GitHub form)',
+        onclick: () => window.knet.reportPost(j.id),
+      }, '⚑ Report') : null),
     j.status === 'applied' && j.application ? applicationSection(j) : null,
 
     h('h3', {}, 'Why it matches'),
@@ -174,11 +182,20 @@ function renderDetail(j) {
 
     j.tags.length ? h('div', {}, h('h3', {}, 'Tags'), h('div', { class: 'tags' }, j.tags.slice(0, 20).map((t) => h('span', { class: 'tag' }, t)))) : null,
     h('h3', {}, 'Description'),
-    h('div', { class: 'desc' }, j.description || 'No description provided.'),
+    descriptionOf(j),
     h('p', { class: 'credit muted' }, 'Source: ',
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); window.knet.openUrl(src?.homepage || j.url); } }, src?.label || j.source)),
   ));
   d.scrollTop = 0;
+}
+
+// Job posts are written in Markdown; other sources' descriptions are already plain text.
+function descriptionOf(j) {
+  if (!j.description) return h('div', { class: 'desc' }, 'No description provided.');
+  if (j.format !== 'markdown' || !window.md) return h('div', { class: 'desc' }, j.description);
+  const box = h('div', { class: 'desc md' });
+  box.append(window.md.renderMarkdown(j.description, { openUrl: (u) => window.knet.openUrl(u) }));
+  return box;
 }
 
 // ---------- applications ----------
@@ -618,6 +635,16 @@ async function init() {
   $('#registerForm').addEventListener('submit', register);
   postSkills = chipInput($('#postSkills'), []);
   $('#checkPost').addEventListener('click', checkPost);
+  $$('#descTabs button').forEach((b) => b.addEventListener('click', () => {
+    const preview = b.dataset.mode === 'preview';
+    $$('#descTabs button').forEach((x) => x.classList.toggle('active', x === b));
+    const text = $('#postForm').description.value;
+    $('#descPreview').replaceChildren(text.trim()
+      ? window.md.renderMarkdown(text, { openUrl: (u) => window.knet.openUrl(u) })
+      : h('p', { class: 'muted' }, 'Nothing to preview yet.'));
+    $('#descPreview').hidden = !preview;
+    $('#postForm').description.hidden = preview;
+  }));
   $('#postForm').addEventListener('submit', submitPost);
   $('#settingsForm').addEventListener('submit', saveSettings);
   $('#testNotif').addEventListener('click', () => window.knet.testNotification());

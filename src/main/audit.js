@@ -210,6 +210,11 @@ function auditPost(post, opts = {}) {
   add('description', 'Real description', d.length >= POST_LIMITS.minDescription ? 'pass' : 'fail',
     d.length >= POST_LIMITS.minDescription ? `${d.length} characters.` : `Only ${d.length} characters; describe the role, requirements and how to apply (at least ${POST_LIMITS.minDescription}).`);
 
+  // Links inside the (Markdown) description: no link shorteners there either.
+  const shortLinks = [...d.matchAll(/https?:\/\/([^\s/)\]>"']{1,253})/gi)].map((m) => m[1].toLowerCase())
+    .filter((host) => SHORTENERS.has(host) || SHORTENERS.has(baseDomain(host)));
+  if (shortLinks.length) add('desclinks', 'Links in the description', 'fail', `Uses link shorteners (${[...new Set(shortLinks)].join(', ')}). Link to the real page.`);
+
   const text = `${post.title}\n${post.company}\n${d}\n${post.salary || ''}`;
   const scams = SCAMS.filter(([re]) => re.test(text)).map(([, why]) => why);
   add('scam', 'No scam signals', scams.length ? 'fail' : 'pass', scams.length ? `Flagged: ${scams.join('; ')}.` : 'None found.');

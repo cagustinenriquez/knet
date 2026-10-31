@@ -89,8 +89,15 @@
           <div class="chips" id="postSkills"></div></label>
         <label>How to apply <span class="hint">an https:// link or an email address</span>
           <input name="apply" maxlength="500" placeholder="https://acme.com/careers/backend or jobs@acme.com" /></label>
-        <label>Description <span class="hint">role, responsibilities, requirements, benefits (at least 150 characters)</span>
-          <textarea name="description" class="notes" rows="10" maxlength="8000"></textarea></label>
+        <div class="field">
+          <div class="field-head">
+            <span>Description <span class="hint">role, responsibilities, requirements, benefits (at least 150 characters).
+              Markdown works: <code>## Heading</code>, <code>**bold**</code>, <code>- list</code>, <code>[link](https://…)</code></span></span>
+            <div class="tabs small" id="descTabs"><button type="button" data-mode="write" class="active">Write</button><button type="button" data-mode="preview">Preview</button></div>
+          </div>
+          <textarea name="description" class="notes" rows="12" maxlength="8000" aria-label="Description"></textarea>
+          <div id="descPreview" class="desc md md-preview" hidden></div>
+        </div>
         <div id="postChecks" class="post-checks" hidden></div>
         <div class="actions">
           <button class="btn" type="button" id="checkPost">Check post</button>
@@ -157,6 +164,7 @@
     </section>
   </main>
 
+  <script src="markdown.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

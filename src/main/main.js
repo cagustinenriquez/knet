@@ -6,7 +6,7 @@ const { Store } = require('./store');
 const { SOURCES, fetchAll, dupKey } = require('./sources');
 const { PLATFORMS, checkSource, http } = require('./ats');
 const { fetchApproved, syncApproved, suggestUrl } = require('./shared');
-const { postFormUrl, applyLink } = require('./posts');
+const { postFormUrl, applyLink, reportFormUrl } = require('./posts');
 const { auditPost } = require('./audit');
 const { scoreJob } = require('./matcher');
 const { profileError, normalizeEmail, isRegistered } = require('./profile');
@@ -313,6 +313,13 @@ function registerIpc() {
     workplace: String(p.workplace || ''), type: String(p.type || ''), level: String(p.level || ''),
     salary: String(p.salary || '').trim(), tags: Array.isArray(p.tags) ? p.tags.map(String).slice(0, 15) : [],
     apply: applyLink(p.apply), description: String(p.description || '').trim(),
+  });
+  // Report a job posted on knet: opens the pre-filled report form on GitHub.
+  ipcMain.handle('report-post', (_e, id) => {
+    const j = store.data.jobs[id];
+    if (!j || j.source !== 'posted' || !Number.isInteger(j.issue)) return false;
+    openExternal(reportFormUrl(j));
+    return true;
   });
   ipcMain.handle('check-post', (_e, p) => auditPost(draftPost(p)));
   ipcMain.handle('open-post-form', (_e, p) => {

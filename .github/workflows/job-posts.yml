@@ -1,14 +1,20 @@
-# Publishes jobs posted through the "Post a job" issue form (label job-post) to
-# jobs/posted.json, which every knet app reads. See README → "Posting a job".
+# Job posts, reports and verified posters. See README → "Posting a job".
+# Writes jobs/posted.json (read by every app), jobs/verified.json and jobs/reports.json.
+#
+# Post issues (label job-post):
 # - opened / edited / reopened: check the post; publish it if nothing fails.
-# - labeled "approved" (admins only): publish even if a check failed.
+# - labeled "approved" (admins): publish even if a check failed; clears reports.
+# - labeled "revoke" (admins): remove the post and close the issue.
+# - labeled / unlabeled "verified-poster" (admins): verify / unverify the poster.
 # - closed: remove the post (position filled).
-# - daily: drop posts older than 30 days and close their issues.
+# Report issues (label job-report, from the "Report a job post" form):
+# - opened: count the report on the post; 3 different people hide it until an admin reviews.
+# Daily: drop posts older than 30 days and close their issues.
 name: Job posts
 
 on:
   issues:
-    types: [opened, edited, reopened, labeled, closed]
+    types: [opened, edited, reopened, labeled, unlabeled, closed]
   schedule:
     - cron: "41 6 * * *"
   workflow_dispatch:
@@ -17,12 +23,17 @@ permissions:
   contents: write
   issues: write
 
+env:
+  GH_TOKEN: ${{ github.token }}
+  NUMBER: ${{ github.event.issue.number }}
+
 jobs:
   review:
     if: >-
       github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'job-post') &&
       github.event.issue.state == 'open' &&
-      (github.event.action != 'labeled' || github.event.label.name == 'approved')
+      (contains(fromJSON('["opened","edited","reopened"]'), github.event.action) ||
+       (github.event.action == 'labeled' && github.event.label.name == 'approved'))
     runs-on: ubuntu-latest
     concurrency:
       group: job-post-${{ github.event.issue.number }}
@@ -39,28 +50,26 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           POSTER: ${{ github.event.issue.user.login }}
           OVERRIDE: ${{ contains(github.event.issue.labels.*.name, 'approved') }}
+          APPROVED_NOW: ${{ github.event.action == 'labeled' && github.event.label.name == 'approved' }}
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Update jobs/posted.json
-        if: steps.review.outputs.action != 'none'
-        run: ./.github/scripts/apply-post.sh "Job post #$NUMBER: $ACTION"
-        env:
-          NUMBER: ${{ github.event.issue.number }}
-          ACTION: ${{ steps.review.outputs.action }}
+      - name: Update jobs/*.json
+        if: steps.review.outputs.changes == 'true'
+        run: ./.github/scripts/apply-post.sh "Job post #$NUMBER: ${{ steps.review.outputs.action }}"
       - name: Comment and label
         run: |
           gh issue comment "$NUMBER" --body-file comment.md
           if [ "$ACTION" = "upsert" ]; then
-            gh issue edit "$NUMBER" --add-label published --remove-label needs-review || true
+            gh issue edit "$NUMBER" --add-label published --remove-label needs-review --remove-label reported || true
           else
             gh issue edit "$NUMBER" --add-label needs-review --remove-label published || true
           fi
         env:
-          GH_TOKEN: ${{ github.token }}
-          NUMBER: ${{ github.event.issue.number }}
           ACTION: ${{ steps.review.outputs.action }}
 
-  close:
-    if: github.event_name == 'issues' && github.event.action == 'closed' && contains(github.event.issue.labels.*.name, 'job-post')
+  close-or-revoke:
+    if: >-
+      github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'job-post') &&
+      (github.event.action == 'closed' || (github.event.action == 'labeled' && github.event.label.name == 'revoke'))
     runs-on: ubuntu-latest
     concurrency:
       group: job-post-${{ github.event.issue.number }}
@@ -70,23 +79,72 @@ jobs:
         with:
           node-version: 22
       - name: Remove the post
-        id: review
-        run: node scripts/review-job.js close > comment.md
+        run: node scripts/review-job.js ${{ github.event.action == 'closed' && 'close' || 'revoke' }} > comment.md
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-      - name: Update jobs/posted.json
-        if: steps.review.outputs.action == 'remove'
-        run: ./.github/scripts/apply-post.sh "Job post #$NUMBER: removed (issue closed)"
-        env:
-          NUMBER: ${{ github.event.issue.number }}
+      - name: Update jobs/*.json
+        run: ./.github/scripts/apply-post.sh "Job post #$NUMBER: removed (${{ github.event.action }})"
       - name: Comment
-        if: steps.review.outputs.action == 'remove'
         run: |
-          gh issue comment "$NUMBER" --body-file comment.md
+          if [ -s comment.md ]; then gh issue comment "$NUMBER" --body-file comment.md; fi
           gh issue edit "$NUMBER" --remove-label published || true
+          if [ "${{ github.event.action }}" = "labeled" ]; then gh issue close "$NUMBER" --reason "not planned" || true; fi
+
+  verify:
+    if: >-
+      github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'job-post') &&
+      (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'verified-poster'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: job-post-${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Update the verified list
+        run: node scripts/review-job.js ${{ github.event.action == 'labeled' && 'verify' || 'unverify' }} > comment.md
         env:
-          GH_TOKEN: ${{ github.token }}
-          NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          POSTER: ${{ github.event.issue.user.login }}
+      - name: Update jobs/*.json
+        run: ./.github/scripts/apply-post.sh "Poster ${{ github.event.action == 'labeled' && 'verified' || 'unverified' }} (#$NUMBER)"
+      - name: Comment
+        run: gh issue comment "$NUMBER" --body-file comment.md
+
+  report:
+    if: github.event_name == 'issues' && github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'job-report')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Count the report
+        id: report
+        run: node scripts/review-job.js report
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ACTOR: ${{ github.event.issue.user.login }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Update jobs/*.json
+        if: steps.report.outputs.changes == 'true'
+        run: ./.github/scripts/apply-post.sh "Report on job post #$POST (from #$NUMBER)"
+        env:
+          POST: ${{ steps.report.outputs.post }}
+      - name: Write comments
+        id: notes
+        run: node scripts/review-job.js report-notes
+      - name: Comment, label and close
+        run: |
+          if [ "${{ steps.notes.outputs.comment_post }}" = "true" ]; then gh issue comment "$POST" --body-file post-comment.md || true; fi
+          if [ "${{ steps.notes.outputs.hidden }}" = "true" ]; then
+            gh issue edit "$POST" --add-label reported --add-label needs-review --remove-label published --remove-label approved || true
+          fi
+          gh issue close "$NUMBER" --reason completed --comment "$(cat report-comment.md)"
+        env:
+          POST: ${{ steps.report.outputs.post }}
 
   expire:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -98,12 +156,12 @@ jobs:
           node-version: 22
       - name: Drop expired posts
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for i in 1 2 3 4 5; do
             git fetch -q origin dev && git reset -q --hard origin/dev
             node scripts/review-job.js expire > expired.txt
             if git diff --quiet; then break; fi
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git commit -qam "Expire job posts: $(cat expired.txt)" && git push -q origin HEAD:dev && break
             sleep $((i * 3))
           done
@@ -113,5 +171,3 @@ jobs:
             gh issue close "$n" --reason completed --comment "This post reached its 30-day limit and was removed from knet. Post it again if the position is still open." || true
             gh issue edit "$n" --remove-label published || true
           done
-        env:
-          GH_TOKEN: ${{ github.token }}

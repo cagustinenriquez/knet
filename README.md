@@ -118,6 +118,23 @@ Anyone can post a listing from **Post a job** in the app:
 4. Every app reads `jobs/posted.json` on each check as the "Posted on knet" source. Posts go
    through normal matching, so users whose profile fits get a notification.
 
+Descriptions support Markdown (headings, **bold**, lists, links, code); the form has a
+Preview tab. It's rendered by a small built-in parser ([src/renderer/markdown.js](src/renderer/markdown.js))
+that never inserts HTML and only opens http(s)/mailto links.
+
+**Reporting.** Posted jobs have a **⚑ Report** button that opens a pre-filled "Report a job
+post" issue ([report-job.yml](.github/ISSUE_TEMPLATE/report-job.yml)). The bot logs the report
+on the post's issue and closes the report. When 3 different people report a post, it's hidden
+from every app and labeled `reported` / `needs-review`; an admin then adds `approved` (restore
+it and clear the reports) or `revoke` (remove it and close the issue). The poster's own reports,
+repeat reports and reports from GitHub accounts under 14 days old don't count.
+
+**Verified posters.** An admin adds the `verified-poster` label to one of a poster's job issues
+after checking them (company site, LinkedIn, a call). All their posts then show a **✓ Verified**
+badge and skip the new-account and post-limit checks. Their posts aren't auto-hidden by reports
+(reports go to the admin instead). Removing the label un-verifies them. The list lives in
+[jobs/verified.json](jobs/verified.json); reports in [jobs/reports.json](jobs/reports.json).
+
 Editing the issue re-checks and updates the post (an edit that fails takes it down). Closing
 the issue removes it from every app. Posts expire after 30 days: a daily run removes them and
 closes their issues. Posts can be turned off in Settings → Job sources.
@@ -160,7 +177,7 @@ A source you add is only on your computer. Press **Suggest** next to it to share
   saved or applied to.
 
 Labels the repo needs: `source-request`, `approved`, `approved-override`, `revoke`, `source-audit`,
-plus `job-post`, `published` and `needs-review` for job posts.
+plus `job-post`, `published`, `needs-review`, `job-report`, `reported` and `verified-poster` for job posts.
 The list is read from the `dev` branch. Set `KNET_APPROVED_URL` to use another URL (e.g. for
 testing). Entries are validated before use, since the file is public. You can run an audit
 locally: `ISSUE_BODY="$(cat issue.md)" node scripts/review-source.js check`.
@@ -175,9 +192,10 @@ src/main/companies.js default company list
 src/main/rss.js       RSS / Atom feed reader
 src/main/shared.js    admin-approved shared sources (download, merge, revoke)
 src/main/audit.js     source and job-post audit checks (scams, freshness, overlap, ...)
-src/main/posts.js     jobs posted on knet: issue parsing, validation, GitHub form link
+src/main/posts.js     jobs posted on knet: issue parsing, validation, GitHub form links
+src/renderer/markdown.js  safe Markdown renderer for posted job descriptions
 scripts/review-source.js  run by the GitHub workflow to check / approve suggestions
-scripts/review-job.js     run by the GitHub workflow to check / publish / remove job posts
+scripts/review-job.js     run by the GitHub workflow: publish / remove posts, reports, verification
 src/main/location.js  location / region filter
 src/main/profile.js   profile validation (email required)
 src/main/applications.js  application stages, history and notes
