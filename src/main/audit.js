@@ -4,6 +4,7 @@
 // Each check is pass / warn / fail. Any fail blocks approval unless an admin overrides it.
 
 const { scoreLocation } = require('./location');
+const { looseKey } = require('./dedupe'); // company + cleaned-up title: counts jobs we already have
 
 const DAY = 86400000;
 
@@ -59,7 +60,8 @@ function auditSource(src, jobs, opts = {}) {
   const checks = [];
   const add = (id, label, status, detail) => checks.push({ id, label, status, detail });
   const n = jobs.length;
-  const isRss = src.platform === 'rss';
+  // RSS feeds and job sites are multi-company sites hosting their own job pages.
+  const isRss = src.platform === 'rss' || src.platform === 'jobpage';
 
   if (opts.alreadyIn) {
     add('duplicate', 'Not already in knet', 'fail', `knet already reads this board as "${opts.alreadyIn}".`);
@@ -153,8 +155,6 @@ function summarize(checks) {
   return { status, blocking: status === 'fail', checks };
 }
 
-// Looser than sources.dupKey: location formats differ between sources.
-const looseKey = (j) => `${j.company}|${j.title}`.toLowerCase().replace(/[^a-z0-9|]+/g, '');
 
 // Minimal robots.txt check for one path: rules for "*" (or "knet"); longest match wins.
 function robotsDisallows(robotsTxt, path) {

@@ -76,8 +76,28 @@ which platform it uses.
 Paste the feed URL in the same box. Items titled "Company: Job title" are split into company
 and title ([src/main/rss.js](src/main/rss.js)).
 
-If you paste a page that links to several companies' boards (a job board rather than one
-company's careers page), the app says so instead of guessing.
+**Job sites without a feed** (e.g. `relocate.me/international-jobs`). Many sites describe each
+job page with standard schema.org `JobPosting` data (what Google Jobs reads). Paste the site's
+job list page: the app finds the job links on it (and the next pages), reads only job pages
+it hasn't seen (30 per check, 2 at a time, honoring robots.txt), and credits the site
+([src/main/jobpage.js](src/main/jobpage.js)).
+
+If you paste a page that links to several companies' boards and has no readable job pages,
+the app says so instead of guessing.
+
+**Duplicates.** The same job often comes from several places (the company's board, job
+boards, aggregators). [src/main/dedupe.js](src/main/dedupe.js) treats two jobs as the same when:
+
+- the company matches after dropping legal endings (`Catawiki B.V.` = `Catawiki`),
+- the title matches after dropping filler (`(m/f/d)`, `| Relocation Offered`, `- Remote`,
+  `Sr.` = `Senior`), or has the same words in another order,
+- and the locations don't conflict (`Amsterdam` fits `Amsterdam, Netherlands`; Berlin vs
+  London, or Cali vs Medellín, are separate postings).
+
+Different rank words (Senior vs Junior, II vs III) or any other different word keep jobs
+apart. The copy kept is the best source (posted on knet > company board > job board >
+aggregator); the others show as "Also posted on …" in the job details. Duplicates already
+stored are merged at startup, never removing a job you saved, applied to or took notes on.
 
 Not supported yet: companies with custom-built job portals (Globant, EPAM, BairesDev,
 Encora, ...) and platforms that need a login token (Hiringroom, Teamtailor, Manatal).

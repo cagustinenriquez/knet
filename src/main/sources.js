@@ -165,6 +165,5 @@ async function fetchAll(settings, known = new Set()) {
 
 // Same company + title + location = same job (often cross-posted to several boards).
 // Location matters: many companies post one opening per country.
-const dupKey = (j) => `${j.company}|${j.title}|${j.location}`.toLowerCase().replace(/[^a-z0-9|]+/g, '');
 
-module.exports = { SOURCES, fetchAll, dupKey };
+module.exports = { SOURCES, fetchAll };

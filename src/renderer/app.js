@@ -127,8 +127,11 @@ function renderDetail(j) {
   const d = $('#jobDetail');
   const m = j.match || {};
   const fromCompany = j.id.split(':').length >= 3;
+  // RSS feeds and job sites list many companies: credit the site, not "<company> careers".
+  const siteHost = ['rss', 'jobpage'].includes(j.source) ? j.id.split(':')[1].split('/')[0] : '';
   const src = j.source === 'posted'
     ? { label: 'Posted on knet (see the post on GitHub)', homepage: j.issueUrl || state.sources.posted?.homepage }
+    : siteHost ? { label: siteHost.replace(/^www\./, ''), homepage: `https://${siteHost}` }
     : fromCompany
       ? { label: `${j.company} careers (${state.platforms[j.source] || j.source})`, homepage: j.url }
       : state.sources[j.source];
@@ -198,8 +201,20 @@ function renderDetail(j) {
     descriptionOf(j),
     h('p', { class: 'credit muted' }, 'Source: ',
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); window.knet.openUrl(src?.homepage || j.url); } }, src?.label || j.source)),
+    j.alsoOn?.length ? h('p', { class: 'credit muted' }, 'Also posted on: ',
+      j.alsoOn.flatMap((a, i) => [i ? ' · ' : null,
+        h('a', { href: '#', title: a.url, onclick: (e) => { e.preventDefault(); window.knet.openUrl(a.url); } },
+          `${alsoOnLabel(a)} ↗`)])) : null,
   ));
   d.scrollTop = 0;
+}
+
+// "Also posted on" label: the site for feeds and job sites, else the source's name.
+function alsoOnLabel(a) {
+  if (['rss', 'jobpage'].includes(a.source)) {
+    try { return new URL(a.url).host.replace(/^www\./, ''); } catch { /* fall through */ }
+  }
+  return state.sources[a.source]?.label || state.platforms[a.source] || a.source;
 }
 
 // Job posts are written in Markdown; other sources' descriptions are already plain text.

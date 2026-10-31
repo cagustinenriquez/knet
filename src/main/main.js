@@ -3,7 +3,8 @@
 const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, shell, nativeImage, clipboard } = require('electron');
 const path = require('path');
 const { Store } = require('./store');
-const { SOURCES, fetchAll, dupKey } = require('./sources');
+const { SOURCES, fetchAll } = require('./sources');
+const { DupIndex, sourceRank } = require('./dedupe');
 const { PLATFORMS, checkSource, http } = require('./ats');
 const { fetchApproved, syncApproved, suggestUrl } = require('./shared');
 const { postFormUrl, applyLink, reportFormUrl, validHidden, HIDDEN_URL } = require('./posts');
@@ -179,7 +180,10 @@ async function sync() {
     const now = new Date().toISOString();
     const fresh = [];
     const alertable = [];
-    const seenKeys = new Set(Object.values(store.data.jobs).map(dupKey));
+    // The same job often comes from several sources; keep one copy (see dedupe.js) and note the
+    // others. Within one check, the best source wins: posted > company board > job board > aggregator.
+    const dups = new DupIndex(Object.values(store.data.jobs));
+    jobs.sort((a, b) => sourceRank(b.source) - sourceRank(a.source));
     // A feed's first load brings in all its existing postings. Those aren't "new", so
     // only alert for feeds (a job board, or one company's board) we've loaded before.
     const seeded = new Set(store.data.seededFeeds ||
@@ -197,10 +201,15 @@ async function sync() {
         existing.match = scoreJob(profile, existing);
         existing.score = existing.match.score;
         if (gotDescription && existing.status === 'new' && !existing.alerted) alertable.push(existing);
-      } else if (!seenKeys.has(dupKey(j))) {
-        seenKeys.add(dupKey(j));
+      } else {
+        const original = dups.find(j);
+        if (original) {
+          noteCopy(original, j);
+          continue;
+        }
         const match = scoreJob(profile, j);
         store.data.jobs[j.id] = { ...j, score: match.score, match, firstSeen: now, status: 'new' };
+        dups.add(store.data.jobs[j.id]);
         fresh.push(store.data.jobs[j.id]);
         if (seeded.has(feedKey(j))) alertable.push(store.data.jobs[j.id]);
       }
@@ -229,6 +238,34 @@ async function sync() {
     send('jobs-updated');
     updateTrayMenu();
   }
+}
+
+// Merge duplicates already in the store (from before dedupe.js, or a smarter rule since).
+// Keeps the best source; a copy you've saved, applied to or written notes on is never removed.
+function mergeStoredDuplicates() {
+  const touched = (j) => ['saved', 'applied'].includes(j.status) || !!j.application; // notes live in application
+  const jobs = Object.values(store.data.jobs).sort((a, b) =>
+    (touched(b) ? 1 : 0) - (touched(a) ? 1 : 0) || sourceRank(b.source) - sourceRank(a.source) || String(a.firstSeen).localeCompare(String(b.firstSeen)));
+  const idx = new DupIndex();
+  let merged = 0;
+  for (const j of jobs) {
+    const original = idx.find(j);
+    if (original && !touched(j)) {
+      noteCopy(original, j);
+      delete store.data.jobs[j.id];
+      merged++;
+    } else {
+      idx.add(j);
+    }
+  }
+  return merged;
+}
+
+// Remember where else a job is posted ("Also on …" in the job details), at most 5 places.
+function noteCopy(original, copy) {
+  if (original.source === copy.source || !/^(https:\/\/|mailto:)/i.test(copy.url || '')) return;
+  const also = (original.alsoOn || []).filter((a) => a.source !== copy.source);
+  original.alsoOn = [...also, { source: copy.source, url: copy.url }].slice(-5);
 }
 
 function notify(alerts) {
@@ -412,6 +449,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     store = new Store(app.getPath('userData'));
+    if (mergeStoredDuplicates()) store.save();
     rescoreAll(); // matching rules may have changed since the last run
     // Jobs marked "applied" before stages existed start at the Applied stage.
     Object.values(store.data.jobs).forEach((j) => j.status === 'applied' && onStatusChange(j, 'applied'));

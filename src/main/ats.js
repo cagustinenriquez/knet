@@ -9,6 +9,8 @@
 
 const { stripHtml } = require('./text');
 const rss = require('./rss');
+const jobpage = require('./jobpage');
+const { robotsDisallows } = require('./audit');
 
 const UA = 'Mozilla/5.0 (compatible; knet-desktop/0.1; job alerts)';
 const MAX_DESC = 8000;
@@ -294,6 +296,28 @@ function normalizeGetOnBoard(j, fallbackCompany) {
   };
 }
 
+// Job sites without a feed whose job pages carry schema.org JobPosting data (jobpage.js).
+// Like RSS, found by content, not URL pattern. Slug = the job list page (host + path + query).
+PLATFORMS.jobpage = {
+  label: 'Job site',
+  boardUrl: (s) => jobpage.pageUrl(s),
+  async fetch(s, name, known) {
+    const { jobs } = await jobpage.fetchJobPages(s, http, known, { robotsDisallows });
+    return jobs;
+  },
+};
+
+// A list page whose links lead to JobPosting pages? Checks the first job link only.
+async function detectJobSite(html, url) {
+  const links = jobpage.findJobLinks(html, url);
+  if (!links.length) return null;
+  try {
+    const first = await http(links[0], { text: true, headers: { Accept: 'text/html' } });
+    if (!jobpage.findPostings(first).length) return null;
+  } catch { return null; }
+  return { platform: 'jobpage', slug: jobpage.pageSlug(url), name: jobpage.siteName(html, url) };
+}
+
 // Find the platform + account in a URL or a page's HTML.
 function findPlatform(text) {
   for (const [platform, p] of Object.entries(PLATFORMS)) {
@@ -346,8 +370,17 @@ async function detectCompany(input) {
   try {
     first = await http(url, { text: true, headers: { Accept: 'application/rss+xml, application/atom+xml, text/html;q=0.9, */*;q=0.8' } });
     if (rss.isFeed(first)) return { platform: 'rss', slug: rss.feedSlug(url), name: rss.feedTitle(first) };
-    const hit = pageHit(first);
+    let hit = null;
+    try {
+      hit = pageHit(first);
+    } catch (e) {
+      // A job board linking several companies: read its own job pages if they carry job data.
+      if (e.ambiguous) return (await detectJobSite(first, url)) || Promise.reject(e);
+      throw e;
+    }
     if (hit) return hit;
+    const site = await detectJobSite(first, url);
+    if (site) return site;
   } catch (e) {
     if (e.ambiguous || /https:\/\/|custom ports/.test(e.message)) throw e; // tell the user
   }
@@ -391,13 +424,15 @@ async function checkSource(input, { withJobs = false } = {}) {
     const url = String(input || '').trim().replace(/^http:\/\//i, 'https://');
     if (!url) return { ok: false, error: 'Paste a URL first.' };
     const hit = await detectCompany(url);
-    if (!hit) return { ok: false, error: "Couldn't find a supported job board or RSS feed at that URL." };
+    if (!hit) return { ok: false, error: "Couldn't find a supported job board, RSS feed or job listings at that URL." };
     const p = PLATFORMS[hit.platform];
-    const { jobs, errors } = await fetchCompanies([{ ...hit, name: hit.name || hit.slug }], { has: () => true }); // skip per-job detail requests
+    // Skip per-job detail requests, except on job sites where each job page *is* the job: read a sample.
+    const known = hit.platform === 'jobpage' ? { has: () => true, sample: 20 } : { has: () => true };
+    const { jobs, errors } = await fetchCompanies([{ ...hit, name: hit.name || hit.slug }], known);
     if (errors.length) {
       const why = errors[0].replace(/^[^:]*: /, '');
-      return { ok: false, error: hit.platform === 'rss'
-        ? `Couldn't read that feed (${why}).`
+      return { ok: false, error: hit.platform === 'rss' ? `Couldn't read that feed (${why}).`
+        : hit.platform === 'jobpage' ? `Couldn't read that job site (${why}).`
         : `No public ${p.label} board named "${hit.slug}" (${why}). Check the URL on the company's careers page.` };
     }
     return {

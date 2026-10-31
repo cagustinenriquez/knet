@@ -64,9 +64,9 @@ const code = (s) => `\`${String(s).replace(/`/g, "'")}\``;
 const readApproved = () => JSON.parse(fs.readFileSync(APPROVED, 'utf8'));
 const writeApproved = (data) => fs.writeFileSync(APPROVED, `${JSON.stringify(data, null, 2)}\n`);
 
-// robots.txt for a feed's site (hiring-platform APIs are meant to be read).
+// robots.txt for a feed's or job site's pages (hiring-platform APIs are meant to be read).
 async function robotsFor(src) {
-  if (src.platform !== 'rss') return null;
+  if (src.platform !== 'rss' && src.platform !== 'jobpage') return null;
   const [host, ...rest] = src.slug.split('/');
   const url = `https://${host}/robots.txt`;
   try {
@@ -106,10 +106,10 @@ async function auditRequest(url, name) {
 }
 
 function report(r, audit) {
-  const site = r.platform === 'rss' ? `https://${r.slug.split('/')[0]}` : r.boardUrl;
+  const site = r.platform === 'rss' || r.platform === 'jobpage' ? `https://${r.slug.split('/')[0]}` : r.boardUrl;
   return [
     `### Audit: ${VERDICT[audit.status]}`,
-    `**${r.label}** · ${code(r.slug)} · ${r.jobCount} jobs right now`,
+    `**${r.label}** · ${code(r.slug)} · ${r.jobCount}${r.platform === 'jobpage' ? '+ jobs (sample read)' : ' jobs right now'}`,
     '',
     formatAudit(audit, safe),
     r.sample.length ? `\n<details><summary>Sample postings</summary>\n\n${r.sample.map((s) => `- ${safe(s)}`).join('\n')}\n</details>` : '',
