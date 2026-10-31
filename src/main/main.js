@@ -6,7 +6,7 @@ const { Store } = require('./store');
 const { SOURCES, fetchAll, dupKey } = require('./sources');
 const { PLATFORMS, checkSource, http } = require('./ats');
 const { fetchApproved, syncApproved, suggestUrl } = require('./shared');
-const { postFormUrl, applyLink, reportFormUrl } = require('./posts');
+const { postFormUrl, applyLink, reportFormUrl, validHidden, HIDDEN_URL } = require('./posts');
 const { auditPost } = require('./audit');
 const { scoreJob } = require('./matcher');
 const { profileError, normalizeEmail, isRegistered } = require('./profile');
@@ -29,9 +29,9 @@ function createWindow() {
     height: 800,
     minWidth: 760,
     minHeight: 520,
-    title: 'knet',
+    title: 'OkNetwork',
     icon: ICON,
-    backgroundColor: '#0f1115',
+    backgroundColor: '#0c0e12',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
@@ -69,7 +69,7 @@ function createTray() {
     tray = null;
     return;
   }
-  tray.setToolTip('knet — job alerts');
+  tray.setToolTip('OkNetwork — job alerts');
   tray.on('click', showWindow);
   updateTrayMenu();
 }
@@ -80,7 +80,7 @@ function updateTrayMenu() {
     (j) => j.status === 'new' && j.score >= store.data.settings.threshold,
   ).length;
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: `Open knet${newCount ? ` (${newCount} new)` : ''}`, click: showWindow },
+    { label: `Open OkNetwork${newCount ? ` (${newCount} new)` : ''}`, click: showWindow },
     { label: syncing ? 'Checking…' : 'Check for jobs now', enabled: !syncing, click: () => sync() },
     { type: 'separator' },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } },
@@ -137,6 +137,15 @@ async function sync() {
       // Offline, or no shared list published yet (404): keep what we have, change nothing.
       if (e.message !== 'HTTP 404') sharedError = `Shared sources: ${e.message}`;
     }
+    // Jobs hidden for everyone after reports (jobs/hidden.json). Offline / 404: keep the last list.
+    try {
+      store.data.hiddenJobs = validHidden(await http(`${HIDDEN_URL}?t=${Date.now()}`));
+    } catch { /* keep previous */ }
+    const hidden = new Set(store.data.hiddenJobs || []);
+    for (const [id, j] of Object.entries(store.data.jobs)) {
+      if (hidden.has(id) && !['saved', 'applied'].includes(j.status)) delete store.data.jobs[id];
+    }
+
     // Jobs we already have a description for don't need their detail pages fetched again.
     const known = new Set(Object.keys(store.data.jobs).filter((id) => store.data.jobs[id].description));
     const { jobs, errors } = await fetchAll(settings, known);
@@ -161,6 +170,7 @@ async function sync() {
       (store.data.synced ? Object.values(store.data.jobs).map(feedKey) : []));
 
     for (const j of jobs) {
+      if (hidden.has(j.id)) continue;
       const existing = store.data.jobs[j.id];
       if (existing) {
         // Some platforms send descriptions a few at a time; alert once one arrives.
@@ -315,11 +325,17 @@ function registerIpc() {
     apply: applyLink(p.apply), description: String(p.description || '').trim(),
   });
   // Report a job posted on knet: opens the pre-filled report form on GitHub.
+  // Report any job: opens the pre-filled report form on GitHub, and takes the job out of
+  // this user's inbox right away (it's in "Dismissed" if they change their mind).
   ipcMain.handle('report-post', (_e, id) => {
     const j = store.data.jobs[id];
-    if (!j || j.source !== 'posted' || !Number.isInteger(j.issue)) return false;
+    if (!j) return null;
     openExternal(reportFormUrl(j));
-    return true;
+    if (!['saved', 'applied'].includes(j.status)) j.status = 'dismissed';
+    j.reported = new Date().toISOString();
+    store.save();
+    updateTrayMenu();
+    return j;
   });
   ipcMain.handle('check-post', (_e, p) => auditPost(draftPost(p)));
   ipcMain.handle('open-post-form', (_e, p) => {
@@ -346,17 +362,21 @@ function registerIpc() {
     return true;
   });
   ipcMain.handle('test-notification', () => {
-    new Notification({ title: 'knet notifications work', body: 'You will see alerts like this for new matches.', icon: ICON }).show();
+    new Notification({ title: 'OkNetwork notifications work', body: 'You will see alerts like this for new matches.', icon: ICON }).show();
   });
 }
 
 // ---------- app lifecycle ----------
 
+// The app's display name is "OkNetwork", but keep data where it has always been
+// (~/.config/knet on Linux) so renaming doesn't strand anyone's profile.
+if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), 'knet'));
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', showWindow);
-  app.setAppUserModelId('com.knet.app'); // needed for notifications on Windows
+  app.setAppUserModelId('com.oknetwork.knet'); // needed for notifications on Windows (matches build.appId)
 
   app.whenReady().then(() => {
     store = new Store(app.getPath('userData'));

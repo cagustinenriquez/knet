@@ -122,12 +122,18 @@ Descriptions support Markdown (headings, **bold**, lists, links, code); the form
 Preview tab. It's rendered by a small built-in parser ([src/renderer/markdown.js](src/renderer/markdown.js))
 that never inserts HTML and only opens http(s)/mailto links.
 
-**Reporting.** Posted jobs have a **⚑ Report** button that opens a pre-filled "Report a job
-post" issue ([report-job.yml](.github/ISSUE_TEMPLATE/report-job.yml)). The bot logs the report
-on the post's issue and closes the report. When 3 different people report a post, it's hidden
-from every app and labeled `reported` / `needs-review`; an admin then adds `approved` (restore
-it and clear the reports) or `revoke` (remove it and close the issue). The poster's own reports,
-repeat reports and reports from GitHub accounts under 14 days old don't count.
+**Reporting.** Every job has a **⚑ Report** button. It opens a pre-filled "Report a job" issue
+([report-job.yml](.github/ISSUE_TEMPLATE/report-job.yml)) and moves the job to "Dismissed" for
+you. When 3 different people report the same job, it's hidden for everyone until an admin
+reviews it:
+- Jobs posted on knet are taken down and their post issue labeled `reported` / `needs-review`.
+  `approved` on the post restores it (and clears the reports); `revoke` removes it.
+- Jobs from boards and company pages are added to [jobs/hidden.json](jobs/hidden.json), which
+  every app reads. The third report stays open, labeled `reported` / `needs-review`;
+  `approved` on it un-hides the job. Entries are dropped after 90 days.
+
+The poster's own reports, repeat reports and reports from GitHub accounts under 14 days old
+don't count.
 
 **Verified posters.** An admin adds the `verified-poster` label to one of a poster's job issues
 after checking them (company site, LinkedIn, a call). All their posts then show a **✓ Verified**
@@ -208,6 +214,30 @@ src/renderer/         UI (plain HTML/CSS/JS, no build step; panels resizable by 
 Data lives in `~/.config/knet/knet-data.json` on Linux
 (`%APPDATA%\knet` on Windows, `~/Library/Application Support/knet` on macOS).
 
+## Packaging (Snap Store)
+
+The app is **OkNetwork**; "knet" is the short name (logo, data folder, repo).
+
+```bash
+npm run icons       # re-render build/icon.png from assets/icon.svg (only after changing it)
+npm run dist:snap   # → dist/oknetwork_<version>_amd64.snap
+```
+
+Try it locally: `sudo snap install --dangerous dist/oknetwork_*.snap`, then run `oknetwork`.
+A snap keeps its data in `~/snap/oknetwork/current/.config/knet/`, separate from a
+development run (`~/.config/knet/`).
+
+Publish (one time: `sudo snap install snapcraft --classic`, `snapcraft login`,
+`snapcraft register oknetwork`):
+
+```bash
+snapcraft upload --release=edge dist/oknetwork_*.snap   # test channel
+snapcraft release oknetwork <revision> stable           # when it's ready
+```
+
+The store listing needs the privacy policy: [PRIVACY.md](PRIVACY.md) (a draft, so fill in
+the placeholders first). The app links to it from the registration screen and Settings.
+
 ## Known limits / next steps
 
 - LinkedIn, Indeed and Glassdoor have no open APIs, and scraping them breaks their
@@ -217,7 +247,8 @@ Data lives in `~/.config/knet/knet-data.json` on Linux
   ("Vue" ≈ "frontend framework"), plus CV upload to fill in the profile.
 - Single user, local only. A real product needs a backend so alerts arrive when the
   laptop is off, plus email/mobile push.
-- Not packaged yet. Add `electron-builder` for .deb/.AppImage/.exe/.dmg installers.
+- Packaged for the Snap Store only so far (see "Packaging"). Windows (Microsoft Store)
+  and macOS (Mac App Store, needs an Apple Developer account) come next.
 - On GNOME, the tray icon needs the AppIndicator extension.
 - Stack: Electron was picked so the MVP could be built quickly. If it works out, the UI
   can be reused as-is in a Tauri (Rust) app for a smaller, lighter build.

@@ -1,15 +1,73 @@
 {
   "name": "knet",
   "version": "0.1.0",
-  "description": "Desktop job alerts: get notified when a new job matches your skills and experience.",
+  "description": "Job alerts for developers: get notified when a new job matches your skills, experience and location.",
   "main": "src/main/main.js",
   "private": true,
   "scripts": {
     "start": "node scripts/start.js",
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "icons": "electron scripts/render-icons.js",
+    "dist:snap": "electron-builder --linux snap",
+    "dist:linux": "electron-builder --linux snap AppImage deb"
   },
   "license": "UNLICENSED",
   "devDependencies": {
-    "electron": "^45.2.0"
-  }
+    "electron": "^45.2.0",
+    "electron-builder": "^26.18.0"
+  },
+  "productName": "OkNetwork",
+  "author": {
+    "name": "OkNetwork"
+  },
+  "homepage": "https://github.com/cagustinenriquez/knet",
+  "build": {
+    "appId": "com.oknetwork.knet",
+    "productName": "OkNetwork",
+    "executableName": "oknetwork",
+    "copyright": "Copyright © 2026 OkNetwork",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "!**/*.test.js"
+    ],
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Office",
+      "synopsis": "Job alerts that match your skills",
+      "description": "OkNetwork (knet) watches job boards, company career pages and RSS feeds, and sends you a desktop notification when a new job matches your tech stack, experience, soft skills and location. It explains every match, tracks your applications, and lets companies post jobs directly.",
+      "desktop": {
+        "entry": {
+          "Name": "OkNetwork",
+          "GenericName": "Job Alerts",
+          "Comment": "Job alerts that match your skills",
+          "Keywords": "jobs;job search;alerts;remote;developer;knet;"
+        }
+      },
+      "target": [
+        "snap"
+      ],
+      "syncDesktopName": true
+    },
+    "snap": {
+      "title": "OkNetwork",
+      "summary": "Job alerts that match your skills, experience and location",
+      "grade": "stable",
+      "confinement": "strict",
+      "base": "core22",
+      "allowNativeWayland": true,
+      "plugs": [
+        "default"
+      ],
+      "publish": null,
+      "artifactName": "oknetwork_${version}_${arch}.${ext}"
+    },
+    "publish": null
+  },
+  "desktopName": "oknetwork.desktop"
 }

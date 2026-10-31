@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
-  <title>knet</title>
+  <title>OkNetwork</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <aside class="sidebar">
-    <div class="brand">knet<span>job alerts</span></div>
+    <div class="brand" title="OkNetwork">knet<span>OkNetwork · job alerts</span></div>
     <nav>
       <button class="nav active" data-view="matches">Matches <span id="newBadge" class="badge" hidden></span></button>
       <button class="nav" data-view="applications">Applications <span id="appCount" class="count" hidden></span></button>
@@ -29,7 +29,7 @@
       <form id="registerForm" class="form register" novalidate>
         <h1>Create your profile</h1>
         <p class="muted">knet matches new job postings to your profile and notifies you. Start with your email.
-          It stays on this computer.</p>
+          It stays on this computer. <a href="#" class="privacy-link">Privacy policy</a></p>
         <label>Email <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" /></label>
         <label>Name <span class="hint">optional</span><input name="name" autocomplete="name" /></label>
         <div id="registerError" class="hint error" role="alert"></div>
@@ -160,6 +160,8 @@
           <button class="btn" type="button" id="testNotif">Send test notification</button>
           <span id="settingsSaved" class="muted"></span>
         </div>
+        <p class="hint about">OkNetwork (knet) 0.1 · Your data stays on this computer.
+          <a href="#" class="privacy-link">Privacy policy</a></p>
       </form>
     </section>
   </main>

@@ -16,11 +16,11 @@
 
 const fs = require('fs');
 const path = require('path');
-const { parseJobIssue, toEntry, LIFETIME_DAYS } = require('../src/main/posts');
+const { parseJobIssue, toEntry, LIFETIME_DAYS, JOB_ID } = require('../src/main/posts');
 const { auditPost, formatAudit } = require('../src/main/audit');
 
 const DIR = path.join(__dirname, '..', 'jobs');
-const FILES = { posted: 'posted.json', verified: 'verified.json', reports: 'reports.json' };
+const FILES = { posted: 'posted.json', verified: 'verified.json', reports: 'reports.json', hidden: 'hidden.json' };
 const OPS = 'ops.json';
 const RESULT = 'result.json';
 const REPORT_THRESHOLD = 3;   // distinct reporters that hide a post
@@ -28,7 +28,7 @@ const MIN_REPORTER_DAYS = 14; // younger accounts' reports are logged but not co
 
 const readJson = (name) => JSON.parse(fs.readFileSync(path.join(DIR, FILES[name]), 'utf8'));
 const writeJson = (name, data) => fs.writeFileSync(path.join(DIR, FILES[name]), `${JSON.stringify(data, null, 2)}\n`);
-const readState = () => ({ posted: readJson('posted'), verified: readJson('verified'), reports: readJson('reports') });
+const readState = () => ({ posted: readJson('posted'), verified: readJson('verified'), reports: readJson('reports'), hidden: readJson('hidden') });
 const safe = (s) => String(s).replace(/[<>`[\]]/g, '').replace(/@/g, '@​');
 const issueUrl = (n) => `https://github.com/${process.env.GITHUB_REPOSITORY || 'cagustinenriquez/knet'}/issues/${n}`;
 function setOutput(name, value) {
@@ -98,22 +98,34 @@ function parseReport(body = '') {
     const v = m ? m[1].trim() : '';
     return v === '_No response_' ? '' : v;
   };
-  const post = get(REPORT_FIELDS.post).match(/(?:issues\/|#|^)\s*(\d{1,9})\b/);
+  const which = get(REPORT_FIELDS.post);
+  const job = which.match(/knet-job:\s*(\S{3,440})(?:\s+(https?:\/\/\S{1,800}))?/i);
+  const post = job ? null : which.match(/(?:issues\/|#|^)\s*(\d{1,9})\b/);
   return {
     post: post ? Number(post[1]) : null,
+    jobId: job && JOB_ID.test(job[1]) ? job[1] : null,
+    jobUrl: job?.[2] || '',
     reason: get(REPORT_FIELDS.reason).replace(/[\u0000-\u001f]/g, '').slice(0, 80),
     details: get(REPORT_FIELDS.details).slice(0, 2000),
   };
 }
 
 // Returns { ops, note } — note explains a report that won't be counted.
-function decideReport({ body, number, reporter, ageDays, state = readState() }) {
+function decideReport({ body, number, reporter, ageDays, title = '', state = readState() }) {
   const r = parseReport(body);
+  const young = ageDays != null && ageDays < MIN_REPORTER_DAYS;
+  if (r.jobId) { // a job from a board or company page
+    return {
+      ops: [{ op: 'reportJob', id: r.jobId, reporter, reason: r.reason || 'Other', counted: !young, report: number,
+        title: String(title).replace(/^Report:\s*/i, '').slice(0, 200) }],
+      note: young ? `Thanks. Reports from GitHub accounts under ${MIN_REPORTER_DAYS} days old are logged for the admin but don't count toward hiding the job.` : '',
+      report: r,
+    };
+  }
   if (!r.post) return { ops: [], note: 'Couldn\'t tell which post this is about. Put the post\'s issue number (like #42) in "Which post".', report: r };
   const entry = state.posted.jobs.find((j) => j.issue === r.post);
   if (!entry) return { ops: [], note: `Post #${r.post} isn't live on knet right now, so there's nothing to hide.`, report: r };
   const own = entry.poster && entry.poster.toLowerCase() === String(reporter).toLowerCase();
-  const young = ageDays != null && ageDays < MIN_REPORTER_DAYS;
   const counted = !own && !young;
   return {
     ops: [{ op: 'report', issue: r.post, reporter, reason: r.reason || 'Other', counted, report: number }],
@@ -129,7 +141,8 @@ function applyOps(state, ops, now = new Date()) {
   const s = {
     posted: { ...state.posted, jobs: [...state.posted.jobs] },
     verified: { ...state.verified, posters: [...(state.verified.posters || [])] },
-    reports: { ...state.reports, reports: { ...(state.reports.reports || {}) } },
+    reports: { ...state.reports, reports: { ...(state.reports.reports || {}) }, jobs: { ...(state.reports.jobs || {}) } },
+    hidden: { ...(state.hidden || {}), jobs: [...(state.hidden?.jobs || [])] },
   };
   const result = {};
   const setVerifiedFlags = () => {
@@ -149,6 +162,21 @@ function applyOps(state, ops, now = new Date()) {
       setVerifiedFlags();
     } else if (o.op === 'clearReports') {
       delete s.reports.reports[o.issue];
+    } else if (o.op === 'reportJob') {
+      const list = [...(s.reports.jobs[o.id] || [])];
+      const mine = list.find((r) => r.reporter.toLowerCase() === o.reporter.toLowerCase());
+      if (!mine) list.push({ reporter: o.reporter, reason: o.reason, counted: o.counted, at: now.toISOString().slice(0, 10), report: o.report });
+      s.reports.jobs[o.id] = list;
+      result.count = list.filter((r) => r.counted).length;
+      result.duplicate = !!mine && mine.report !== o.report;
+      result.kind = 'job';
+      if (result.count >= REPORT_THRESHOLD && !s.hidden.jobs.some((j) => j.id === o.id)) {
+        s.hidden.jobs.push({ id: o.id, title: o.title, since: now.toISOString().slice(0, 10), report: o.report });
+        result.hidden = true;
+      }
+    } else if (o.op === 'unhideJob') {
+      s.hidden.jobs = s.hidden.jobs.filter((j) => j.id !== o.id);
+      delete s.reports.jobs[o.id];
     } else if (o.op === 'report') {
       const list = [...(s.reports.reports[o.issue] || [])];
       if (!list.some((r) => r.reporter.toLowerCase() === o.reporter.toLowerCase())) {
@@ -172,6 +200,14 @@ function applyOps(state, ops, now = new Date()) {
 
 function reportNotes({ post, result, note, reason, counted = true }) {
   const count = `${result.count ?? 0}/${REPORT_THRESHOLD}`;
+  if (result.kind === 'job' || (!post && result.count !== undefined)) { // a job from a board or company page
+    return {
+      toPost: '',
+      toReporter: note || (result.duplicate ? 'You already reported this job; it counts once.'
+        : result.hidden ? `🚩 Thanks. This job reached ${REPORT_THRESHOLD} reports and is now hidden for every knet user. An admin will review it: adding \`approved\` to this issue un-hides it.`
+          : `Thanks for the report. It's logged (${count} reports; the job is hidden for everyone at ${REPORT_THRESHOLD}).`),
+    };
+  }
   // Only counted reports on live posts are mentioned on the post's issue.
   const toPost = result.count === undefined || !counted ? ''
     : result.hidden
@@ -191,7 +227,16 @@ function expire(state, now = Date.now()) {
   const live = state.posted.jobs.filter((j) => Date.parse(j.expiresAt) > now);
   const expired = state.posted.jobs.filter((j) => Date.parse(j.expiresAt) <= now).map((j) => j.issue);
   const reports = Object.fromEntries(Object.entries(state.reports.reports || {}).filter(([n]) => !expired.includes(Number(n))));
-  return { state: { ...state, posted: { ...state.posted, jobs: live }, reports: { ...state.reports, reports } }, expired };
+  // Hidden board jobs: listings are long gone after ~90 days, so forget them.
+  const cutoff = now - 90 * 86400000;
+  const hiddenJobs = (state.hidden?.jobs || []).filter((j) => Date.parse(j.since) > cutoff);
+  const keep = new Set(hiddenJobs.map((j) => j.id));
+  const jobReports = Object.fromEntries(Object.entries(state.reports.jobs || {})
+    .filter(([id, list]) => keep.has(id) || list.some((r) => Date.parse(r.at) > cutoff)));
+  return {
+    state: { ...state, posted: { ...state.posted, jobs: live }, reports: { ...state.reports, reports, jobs: jobReports }, hidden: { ...(state.hidden || {}), jobs: hiddenJobs } },
+    expired,
+  };
 }
 
 // ---------- CLI ----------
@@ -222,9 +267,10 @@ async function main(mode) {
       ? `✓ **${safe(login)} is now a verified poster.** Their posts show a Verified badge in knet and skip the new-account and post-limit checks. Remove the \`verified-poster\` label to undo.`
       : `${safe(login)} is no longer a verified poster.`);
   } else if (mode === 'report') {
-    const r = decideReport({ body: process.env.ISSUE_BODY, number, reporter: login, ageDays: await accountAgeDays(login) });
+    const r = decideReport({ body: process.env.ISSUE_BODY, number, reporter: login, title: process.env.ISSUE_TITLE, ageDays: await accountAgeDays(login) });
     writeOps(r.ops);
     fs.writeFileSync('report.json', JSON.stringify({ post: r.report.post, note: r.note, reason: r.report.reason || 'Other', counted: !!r.ops[0]?.counted }));
+    setOutput('kind', r.report.jobId ? 'job' : 'post');
     setOutput('changes', String(r.ops.length > 0));
     setOutput('post', r.report.post || '');
   } else if (mode === 'report-notes') {
@@ -235,6 +281,11 @@ async function main(mode) {
     fs.writeFileSync('report-comment.md', toReporter);
     setOutput('hidden', String(!!result.hidden));
     setOutput('comment_post', String(!!toPost && !!meta.post));
+  } else if (mode === 'unhide') { // admin labeled a job report "approved"
+    const { jobId } = parseReport(process.env.ISSUE_BODY);
+    writeOps(jobId ? [{ op: 'unhideJob', id: jobId }] : []);
+    setOutput('changes', String(!!jobId));
+    console.log(jobId ? '✅ An admin reviewed this job and un-hid it for everyone.' : 'This report isn\'t about a job from a board or company page, so there was nothing to un-hide.');
   } else if (mode === 'apply') {
     const { state, result } = applyOps(readState(), JSON.parse(fs.readFileSync(process.argv[3] || OPS, 'utf8')));
     for (const k of Object.keys(FILES)) writeJson(k, state[k]);

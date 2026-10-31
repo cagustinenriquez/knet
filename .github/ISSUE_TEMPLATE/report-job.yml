@@ -1,18 +1,19 @@
-name: Report a job post
-description: Flag a job posted on knet as a scam, fake, misleading or otherwise wrong.
+name: Report a job
+description: Flag a job in knet as a scam, fake, misleading or otherwise wrong.
 title: "Report: "
 labels: ["job-report"]
 body:
   - type: markdown
     attributes:
       value: |
-        Reports are counted per person. When 3 different people report a post, it's hidden from
+        Easiest from the app: press "Report" on the job and this form is filled in for you.
+        Reports are counted per person. When 3 different people report a job, it's hidden from
         every knet app until an admin reviews it. Your report is public, like any GitHub issue.
   - type: input
     id: post
     attributes:
       label: Which post
-      description: The post's issue number or link.
+      description: Filled in by the app. For jobs posted on knet, the post's issue number (like #42).
       placeholder: "#42"
     validations:
       required: true

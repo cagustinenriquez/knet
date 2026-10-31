@@ -4,7 +4,9 @@
 
 const REPO = 'cagustinenriquez/knet';
 const POSTED_URL = process.env.KNET_POSTED_URL || `https://raw.githubusercontent.com/${REPO}/dev/jobs/posted.json`;
+const HIDDEN_URL = process.env.KNET_HIDDEN_URL || `https://raw.githubusercontent.com/${REPO}/dev/jobs/hidden.json`;
 const LIFETIME_DAYS = 30;
+const JOB_ID = /^[a-z0-9_-]{1,40}:[^\s]{1,400}$/i;
 
 // Issue form fields, in form order: [id, heading on the rendered issue].
 const FIELDS = [
@@ -109,10 +111,22 @@ function postFormUrl(post, { withDescription = true } = {}) {
   return `https://github.com/${REPO}/issues/new?${q}`;
 }
 
-// Pre-filled "Report a job post" issue.
-function reportFormUrl({ issue, title, company }) {
-  const q = new URLSearchParams({ template: 'report-job.yml', title: `Report: #${issue} ${title} at ${company}`.slice(0, 200), post: `#${issue}` });
+// Pre-filled "Report a job" issue. Posted jobs are named by issue number; jobs from boards
+// and company pages by their knet id (plus the link, for the admin).
+function reportFormUrl({ id, source, issue, title, company, url }) {
+  const posted = source === 'posted' && Number.isInteger(issue);
+  const q = new URLSearchParams({
+    template: 'report-job.yml',
+    title: `Report: ${posted ? `#${issue} ` : ''}${title} at ${company}`.slice(0, 200),
+    post: posted ? `#${issue}` : `knet-job: ${id} ${/^https?:\/\//i.test(url) ? url : ''}`.trim().slice(0, 900),
+  });
   return `https://github.com/${REPO}/issues/new?${q}`;
 }
 
-module.exports = { reportFormUrl, POSTED_URL, LIFETIME_DAYS, FIELDS, parseJobIssue, toEntry, validPosts, postFormUrl, applyLink };
+// jobs/hidden.json: jobs hidden for everyone after reports. Public file → validate.
+function validHidden(data) {
+  const list = Array.isArray(data?.jobs) ? data.jobs : [];
+  return list.filter((j) => j && typeof j.id === 'string' && JOB_ID.test(j.id)).map((j) => j.id);
+}
+
+module.exports = { reportFormUrl, validHidden, HIDDEN_URL, JOB_ID, POSTED_URL, LIFETIME_DAYS, FIELDS, parseJobIssue, toEntry, validPosts, postFormUrl, applyLink };

@@ -158,10 +158,18 @@ function renderDetail(j) {
       statusBtn('saved', 'Save'),
       statusBtn('applied', 'Applied'),
       statusBtn('dismissed', 'Not interested'),
-      j.source === 'posted' ? h('button', {
-        class: 'btn ghost-danger', title: 'Report this post as a scam, fake, misleading… (opens a GitHub form)',
-        onclick: () => window.knet.reportPost(j.id),
-      }, '⚑ Report') : null),
+      h('button', {
+        class: 'btn ghost-danger', title: 'Report this job as a scam, fake, misleading or already filled (opens a GitHub form)',
+        onclick: async () => {
+          const updated = await window.knet.reportPost(j.id);
+          if (updated) Object.assign(j, updated);
+          renderList();
+          renderDetail(j);
+        },
+      }, j.reported ? '⚑ Reported' : '⚑ Report')),
+    j.reported ? h('div', { class: 'banner report-note' },
+      'Thanks. Finish the report on GitHub (it opened in your browser). This job is now in "Dismissed" for you; ',
+      'when 3 people report it, it\'s hidden for everyone until an admin reviews it.') : null,
     j.status === 'applied' && j.application ? applicationSection(j) : null,
 
     h('h3', {}, 'Why it matches'),
@@ -676,3 +684,10 @@ async function init() {
 }
 
 init();
+
+// Privacy policy links (registration screen and Settings).
+const PRIVACY_URL = 'https://github.com/cagustinenriquez/knet/blob/dev/PRIVACY.md';
+document.querySelectorAll('.privacy-link').forEach((a) => a.addEventListener('click', (e) => {
+  e.preventDefault();
+  window.knet.openUrl(PRIVACY_URL);
+}));

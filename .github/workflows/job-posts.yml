@@ -7,8 +7,10 @@
 # - labeled "revoke" (admins): remove the post and close the issue.
 # - labeled / unlabeled "verified-poster" (admins): verify / unverify the poster.
 # - closed: remove the post (position filled).
-# Report issues (label job-report, from the "Report a job post" form):
-# - opened: count the report on the post; 3 different people hide it until an admin reviews.
+# Report issues (label job-report, from the "Report a job" form):
+# - opened: count the report; 3 different people hide the post (or, for jobs from boards and
+#   company pages, add it to jobs/hidden.json) until an admin reviews.
+# - labeled "approved" on a job report: un-hide that job.
 # Daily: drop posts older than 30 days and close their issues.
 name: Job posts
 
@@ -126,6 +128,7 @@ jobs:
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
           ACTOR: ${{ github.event.issue.user.login }}
           GITHUB_TOKEN: ${{ github.token }}
       - name: Update jobs/*.json
@@ -139,12 +142,42 @@ jobs:
       - name: Comment, label and close
         run: |
           if [ "${{ steps.notes.outputs.comment_post }}" = "true" ]; then gh issue comment "$POST" --body-file post-comment.md || true; fi
+          if [ "$KIND" = "job" ] && [ "${{ steps.notes.outputs.hidden }}" = "true" ]; then
+            # A board/company job was hidden for everyone: keep this report open for the admin.
+            gh issue comment "$NUMBER" --body-file report-comment.md
+            gh issue edit "$NUMBER" --add-label reported --add-label needs-review || true
+            exit 0
+          fi
           if [ "${{ steps.notes.outputs.hidden }}" = "true" ]; then
             gh issue edit "$POST" --add-label reported --add-label needs-review --remove-label published --remove-label approved || true
           fi
           gh issue close "$NUMBER" --reason completed --comment "$(cat report-comment.md)"
         env:
           POST: ${{ steps.report.outputs.post }}
+          KIND: ${{ steps.report.outputs.kind }}
+
+  unhide:
+    if: >-
+      github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'approved' &&
+      contains(github.event.issue.labels.*.name, 'job-report')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Un-hide the job
+        id: unhide
+        run: node scripts/review-job.js unhide > comment.md
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+      - name: Update jobs/*.json
+        if: steps.unhide.outputs.changes == 'true'
+        run: ./.github/scripts/apply-post.sh "Un-hide reported job (#$NUMBER)"
+      - name: Comment and close
+        run: |
+          gh issue edit "$NUMBER" --remove-label reported --remove-label needs-review || true
+          gh issue close "$NUMBER" --reason completed --comment "$(cat comment.md)"
 
   expire:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

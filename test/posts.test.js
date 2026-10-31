@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { parseJobIssue, toEntry, validPosts, postFormUrl, applyLink, reportFormUrl } = require('../src/main/posts');
+const { parseJobIssue, toEntry, validPosts, postFormUrl, applyLink, reportFormUrl, validHidden } = require('../src/main/posts');
 const { auditPost } = require('../src/main/audit');
 const { decide, decideReport, parseReport, applyOps, reportNotes, expire } = require('../scripts/review-job');
 
@@ -103,6 +103,36 @@ test('reports: 3 different people hide a post; the poster, repeats and new accou
   assert.strictEqual(state.reports.reports[7], undefined);
 });
 
+test('reports on jobs from boards and company pages hide them for everyone at 3', () => {
+  const link = new URL(reportFormUrl({ id: 'lever:acme:abc-123', source: 'lever', title: 'Dev', company: 'Acme', url: 'https://jobs.lever.co/acme/abc-123' }));
+  const which = link.searchParams.get('post');
+  assert.strictEqual(which, 'knet-job: lever:acme:abc-123 https://jobs.lever.co/acme/abc-123');
+  const rb = `### Which post\n\n${which}\n\n### Reason\n\nScam or fraud\n\n### Details\n\n_No response_`;
+  assert.deepStrictEqual(parseReport(rb).jobId, 'lever:acme:abc-123');
+  assert.strictEqual(parseReport(rb.replace('lever:acme:abc-123', 'no spaces allowed: x')).jobId, null);
+
+  let state = empty();
+  const report = (reporter, n, ageDays = 400) => {
+    const d = decideReport({ body: rb, number: n, reporter, ageDays, title: 'Report: Dev at Acme', state });
+    const r = applyOps(state, d.ops, NOW);
+    state = r.state;
+    return { ...d, result: r.result };
+  };
+  assert.match(report('kid', 1, 2).note, /under 14 days/);
+  assert.strictEqual(report('a', 2).result.count, 1);
+  assert.ok(report('a', 3).result.duplicate);
+  report('b', 4);
+  const third = report('c', 5);
+  assert.ok(third.result.hidden);
+  assert.deepStrictEqual(state.hidden.jobs.map((j) => [j.id, j.title]), [['lever:acme:abc-123', 'Dev at Acme']]);
+  assert.match(reportNotes({ post: null, result: third.result, reason: 'Scam' }).toReporter, /hidden for every knet user/);
+  assert.deepStrictEqual(validHidden(state.hidden), ['lever:acme:abc-123']);
+  assert.deepStrictEqual(validHidden({ jobs: [{ id: 'bad id with spaces' }, { id: 5 }] }), []);
+  // Admin un-hides.
+  state = run(state, [{ op: 'unhideJob', id: 'lever:acme:abc-123' }]);
+  assert.deepStrictEqual([state.hidden.jobs, state.reports.jobs['lever:acme:abc-123']], [[], undefined]);
+});
+
 test('verified posters: badge on all their posts, skip account/limit checks, never auto-hidden', async () => {
   let state = empty();
   // A brand-new account can't post…
@@ -132,7 +162,7 @@ test('apps validate the public posts file', () => {
   assert.strictEqual(ok[0].verified, false);
   assert.strictEqual(validPosts({ jobs: [{ ...e, verified: true }] }, NOW.getTime())[0].verified, true);
   assert.strictEqual(validPosts({ jobs: [{ ...e, verified: 'yes' }] }, NOW.getTime())[0].verified, false);
-  const rep = new URL(reportFormUrl({ issue: 7, title: 'Dev', company: 'Acme' }));
+  const rep = new URL(reportFormUrl({ id: 'posted:7', source: 'posted', issue: 7, title: 'Dev', company: 'Acme' }));
   assert.deepStrictEqual([rep.searchParams.get('template'), rep.searchParams.get('post')], ['report-job.yml', '#7']);
   const bad = [{ ...e, id: 'evil:1' }, { ...e, url: 'javascript:alert(1)' }, { ...e, title: 5 }, { ...e, expiresAt: '2020-01-01' }];
   assert.strictEqual(validPosts({ jobs: bad }, NOW.getTime()).length, 0);
