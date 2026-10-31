@@ -60,12 +60,18 @@
       "grade": "stable",
       "confinement": "strict",
       "base": "core22",
-      "allowNativeWayland": true,
+      "allowNativeWayland": false,
       "plugs": [
         "default"
       ],
       "publish": null,
-      "artifactName": "oknetwork_${version}_${arch}.${ext}"
+      "artifactName": "oknetwork_${version}_${arch}.${ext}",
+      "environment": {
+        "LIBGL_DEBUG": "quiet"
+      },
+      "executableArgs": [
+        "--ozone-platform=x11"
+      ]
     },
     "publish": null
   },

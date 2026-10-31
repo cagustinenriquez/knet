@@ -631,6 +631,10 @@ const isRegistered = () => EMAIL.test((state.profile.email || '').trim());
 async function register(e) {
   e.preventDefault();
   const f = $('#registerForm');
+  // Name and email typed into each other's fields (easy to do): swap them back.
+  if (!f.email.value.includes('@') && f.name.value.includes('@')) {
+    [f.email.value, f.name.value] = [f.name.value, f.email.value];
+  }
   const email = f.email.value.trim();
   const err = $('#registerError');
   if (!email) { err.textContent = 'Email is required.'; f.email.focus(); return; }

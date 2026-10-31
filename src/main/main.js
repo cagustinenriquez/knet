@@ -375,6 +375,8 @@ function registerIpc() {
 
 // The snap's bundled graphics libraries can't load many host GPU drivers (Mesa errors,
 // GPU process crash loop). The UI is simple, so render in software inside a snap.
+// (The harmless "MESA-LOADER: failed to open …" warnings are hidden by LIBGL_DEBUG=quiet,
+// set in the snap config in package.json: Mesa loads before this code runs.)
 if (process.env.SNAP) app.disableHardwareAcceleration();
 
 // The app's display name is "OkNetwork", but keep data where it has always been
