@@ -1,7 +1,7 @@
 {
   "name": "knet",
   "version": "0.1.0",
-  "description": "Job alerts for developers: get notified when a new job matches your skills, experience and location.",
+  "description": "Job alerts for remote and tech jobs: get notified when a new job matches your skills, experience and location.",
   "main": "src/main/main.js",
   "private": true,
   "scripts": {
@@ -9,7 +9,8 @@
     "test": "node --test test/",
     "icons": "electron scripts/render-icons.js",
     "dist:snap": "electron-builder --linux snap",
-    "dist:linux": "electron-builder --linux snap AppImage deb"
+    "dist:linux": "electron-builder --linux snap AppImage deb",
+    "dist:mac": "electron-builder --mac"
   },
   "license": "UNLICENSED",
   "devDependencies": {
@@ -24,7 +25,6 @@
   "build": {
     "appId": "com.oknetwork.knet",
     "productName": "OkNetwork",
-    "executableName": "oknetwork",
     "copyright": "Copyright © 2026 OkNetwork",
     "directories": {
       "output": "dist",
@@ -37,16 +37,19 @@
       "!**/*.test.js"
     ],
     "linux": {
+      "executableName": "oknetwork",
       "icon": "build/icon.png",
       "category": "Office",
       "synopsis": "Job alerts that match your skills",
-      "description": "OkNetwork (knet) watches job boards, company career pages and RSS feeds, and sends you a desktop notification when a new job matches your tech stack, experience, soft skills and location. It explains every match, tracks your applications, and lets companies post jobs directly.",
+      "description": "Job alerts for remote and tech jobs that match your skills, experience and location.",
       "desktop": {
         "entry": {
           "Name": "OkNetwork",
           "GenericName": "Job Alerts",
-          "Comment": "Job alerts that match your skills",
-          "Keywords": "jobs;job search;alerts;remote;developer;knet;"
+          "Comment": "Job alerts for remote and tech jobs that match your skills",
+          "Keywords": "jobs;job search;job alerts;job board;job hunting;careers;hiring;recruiting;recruiter;remote jobs;remote work;work from home;developer jobs;tech jobs;software engineer;programmer;IT jobs;employment;vacancies;job offers;application tracker;interview;knet;OkNetwork;",
+          "StartupWMClass": "oknetwork",
+          "Keywords[es]": "empleo;trabajo;búsqueda de empleo;ofertas de trabajo;alertas de empleo;trabajo remoto;teletrabajo;vacantes;postulaciones;entrevista;desarrollador;programador;knet;OkNetwork;"
         }
       },
       "target": [
@@ -56,7 +59,7 @@
     },
     "snap": {
       "title": "OkNetwork",
-      "summary": "Job alerts that match your skills, experience and location",
+      "summary": "Job alerts for remote and tech jobs that match your skills",
       "grade": "stable",
       "confinement": "strict",
       "base": "core22",
@@ -67,13 +70,45 @@
       "publish": null,
       "artifactName": "oknetwork_${version}_${arch}.${ext}",
       "environment": {
-        "LIBGL_DEBUG": "quiet"
+        "LIBGL_DEBUG": "quiet",
+        "TMPDIR": "$XDG_RUNTIME_DIR"
       },
       "executableArgs": [
         "--ozone-platform=x11"
-      ]
+      ],
+      "description": "OkNetwork (knet) is a job search assistant for your desktop. It watches job boards, company career pages and RSS feeds, and sends you a notification when a new job posting matches your skills, experience and location: no more refreshing job sites.\n\n- Job alerts for remote jobs, tech jobs and developer jobs (software engineer, frontend, backend, full-stack, data, DevOps and more)\n- Match score for every job, with the reasons: tech stack, role, seniority, soft skills and where you can work from\n- Sources: Remotive, Remote OK, Arbeitnow, Jobicy, Get on Board, and company careers pages on Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR and Workday, plus any RSS feed\n- Job application tracker: applied, screening, interview, offer, with private notes\n- Employers and recruiters can post a job for free; matching candidates get notified\n- Private by design: your profile stays on your computer. No account, no ads, no tracking\n\nFive themes, including dark mode, Dracula and Pride."
     },
-    "publish": null
+    "publish": null,
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "OkNetwork-${version}-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "darkModeSupport": true,
+      "minimumSystemVersion": "12.0"
+    },
+    "dmg": {
+      "title": "OkNetwork ${version}"
+    }
   },
   "desktopName": "oknetwork.desktop"
 }

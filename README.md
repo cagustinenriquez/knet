@@ -221,7 +221,32 @@ src/renderer/         UI (plain HTML/CSS/JS, no build step; panels resizable by 
 Data lives in `~/.config/knet/knet-data.json` on Linux
 (`%APPDATA%\knet` on Windows, `~/Library/Application Support/knet` on macOS).
 
-## Packaging (Snap Store)
+## Packaging
+
+### Releases (macOS + snap)
+
+Push a version tag and GitHub Actions builds everything and attaches it to a GitHub Release
+(`.github/workflows/release.yml`):
+
+```bash
+npm version 0.2.0 --no-git-tag-version   # bump package.json
+git commit -am "v0.2.0" && git tag v0.2.0 && git push origin dev v0.2.0
+```
+
+- **macOS:** `OkNetwork-<version>-arm64.dmg` (Apple Silicon) and `-x64.dmg` (Intel), plus ZIPs.
+  Without an Apple Developer certificate the app is ad-hoc signed, so users approve it once:
+  open it, then System Settings → Privacy & Security → **Open Anyway**. To sign and notarize
+  (no warning), add the repository secrets listed at the top of the workflow.
+- **Snap:** built on every release; uploaded to the edge channel when the
+  `SNAPCRAFT_STORE_CREDENTIALS` secret exists.
+
+Local Mac builds: `npm run dist:mac` on a Mac. On Linux, `npx electron-builder --mac zip`
+works but can't sign or build a DMG, so the result won't open on Apple Silicon. Use the workflow.
+
+On macOS the window has no title bar (the window buttons sit over the sidebar) and the
+menu-bar icon is a monochrome template (`assets/trayTemplate.svg`, rendered by `npm run icons`).
+
+### Snap Store
 
 The app is **OkNetwork**; "knet" is the short name (logo, data folder, repo).
 

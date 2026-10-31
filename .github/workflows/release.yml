@@ -1,0 +1,97 @@
+# Builds OkNetwork installers. See README → "Packaging".
+#
+# - Push a tag like v0.2.0 → builds macOS (DMG + ZIP, Apple Silicon + Intel) and the snap,
+#   and attaches them to a GitHub Release for that tag.
+# - Run it by hand (Actions → Release → Run workflow) → same builds, downloadable from the
+#   run's "Artifacts" section, no release.
+#
+# macOS signing is optional and turns on when these repository secrets exist:
+#   CSC_LINK (base64 .p12 of a "Developer ID Application" certificate), CSC_KEY_PASSWORD,
+#   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID  (for notarization)
+# Without them the app is ad-hoc signed: it runs on Apple Silicon, but macOS asks users to
+# approve it once (System Settings → Privacy & Security → Open Anyway).
+#
+# Snap Store upload (edge channel) turns on when SNAPCRAFT_STORE_CREDENTIALS exists
+# (from `snapcraft export-login --snaps=oknetwork --channels=edge -`).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build DMG + ZIP
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$CSC_LINK" ]; then
+            echo "Signing with the Developer ID certificate${APPLE_ID:+ and notarizing}."
+            npx electron-builder --mac --publish never
+          else
+            echo "No certificate: ad-hoc signing (users approve the app once)."
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --publish never -c.mac.identity=-
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error
+
+  snap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --linux snap --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snap
+          path: dist/*.snap
+          if-no-files-found: error
+      - name: Upload to the Snap Store (edge)
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          if [ -z "$SNAPCRAFT_STORE_CREDENTIALS" ]; then echo "No store credentials; skipping upload."; exit 0; fi
+          sudo snap install snapcraft --classic
+          snapcraft upload --release=edge dist/*.snap
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [mac, snap]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" out/* --repo "$GITHUB_REPOSITORY" \
+            --title "OkNetwork ${GITHUB_REF_NAME#v}" --generate-notes

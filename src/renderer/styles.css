@@ -481,3 +481,14 @@ body.locked #sidebarResizer { display: none; }
   width: 34px; height: 24px; border-radius: 6px; border: 1px solid var(--line-strong);
   background: var(--sw, linear-gradient(135deg, var(--sw-bg) 0 55%, var(--sw-accent) 55% 100%));
 }
+
+/* ---------- macOS: hidden title bar ----------
+   The window buttons sit over the sidebar (main.js: titleBarStyle 'hiddenInset'). A strip
+   along the top lets the window be dragged; content starts below it. */
+.drag-strip { display: none; }
+.os-darwin .drag-strip {
+  display: block; position: fixed; top: 0; left: 0; right: 0; height: 30px; z-index: 100;
+  -webkit-app-region: drag;
+}
+.os-darwin .sidebar { padding-top: 52px; }
+.os-darwin .view { padding-top: 34px; }

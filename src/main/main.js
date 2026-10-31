@@ -13,6 +13,9 @@ const { profileError, normalizeEmail, isRegistered } = require('./profile');
 const { STAGES, onStatusChange, setStage, setNotes } = require('./applications');
 
 const ICON = path.join(__dirname, '..', '..', 'assets', 'icon.png');
+// macOS menu bar: a black "template" icon that macOS tints (the @2x file is picked up automatically).
+const TRAY_MAC = path.join(__dirname, '..', '..', 'assets', 'trayTemplate.png');
+const IS_MAC = process.platform === 'darwin';
 
 let store;
 let win = null;
@@ -36,6 +39,8 @@ function createWindow() {
     icon: ICON,
     backgroundColor: THEME_BG[store.data.settings.theme] || THEME_BG.light,
     autoHideMenuBar: true,
+    // macOS: no title bar; the window buttons sit inset over the sidebar.
+    ...(IS_MAC ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 } } : {}),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload.js'),
       contextIsolation: true,
@@ -66,7 +71,13 @@ function showWindow() {
 
 function createTray() {
   try {
-    tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 22, height: 22 }));
+    if (IS_MAC) {
+      const img = nativeImage.createFromPath(TRAY_MAC);
+      img.setTemplateImage(true);
+      tray = new Tray(img);
+    } else {
+      tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 22, height: 22 }));
+    }
   } catch (e) {
     console.warn('Tray not available:', e.message);
     tray = null;
@@ -377,7 +388,15 @@ function registerIpc() {
 // GPU process crash loop). The UI is simple, so render in software inside a snap.
 // (The harmless "MESA-LOADER: failed to open …" warnings are hidden by LIBGL_DEBUG=quiet,
 // set in the snap config in package.json: Mesa loads before this code runs.)
-if (process.env.SNAP) app.disableHardwareAcceleration();
+if (process.env.SNAP) {
+  app.disableHardwareAcceleration();
+  // The tray icon image is written to $TMPDIR and read by the desktop shell. A snap's /tmp is
+  // private, so the shell can't read it and shows "⋯". The snap config sets TMPDIR to the
+  // snap's runtime dir (readable by the shell); this is a fallback if that didn't apply.
+  if (process.env.XDG_RUNTIME_DIR && !String(process.env.TMPDIR || '').startsWith(process.env.XDG_RUNTIME_DIR)) {
+    process.env.TMPDIR = process.env.XDG_RUNTIME_DIR;
+  }
+}
 
 // The app's display name is "OkNetwork", but keep data where it has always been
 // (~/.config/knet on Linux) so renaming doesn't strand anyone's profile.

@@ -32,6 +32,8 @@ const state = {
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function safeSet(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } }
 
+document.documentElement.classList.add(`os-${window.knet.platform}`); // e.g. os-darwin
+
 // Apply the saved theme right away so the app doesn't flash the default theme first.
 if (['dark', 'dracula', 'pink', 'pride'].includes(safeGet('theme'))) document.documentElement.dataset.theme = safeGet('theme');
 

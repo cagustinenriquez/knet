@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('knet', {
+  platform: process.platform, // 'darwin' | 'win32' | 'linux': for platform-specific styling
   getState: () => ipcRenderer.invoke('get-state'),
   getJobs: () => ipcRenderer.invoke('get-jobs'),
   saveProfile: (p) => ipcRenderer.invoke('save-profile', p),

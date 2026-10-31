@@ -1,0 +1,10 @@
+<!-- macOS menu-bar icon. "Template" images are black + transparency; macOS tints them for
+     light/dark menu bars. Same "k" and alert dot as icon.svg, without the tile. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <g fill="none" stroke="#000" stroke-width="130" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M300 170 V854"/>
+    <path d="M660 410 L340 640"/>
+    <path d="M490 540 L700 854"/>
+  </g>
+  <circle cx="790" cy="230" r="125" fill="#000"/>
+</svg>
