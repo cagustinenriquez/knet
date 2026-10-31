@@ -1,0 +1,82 @@
+name: Post a job
+description: Publish a job listing to every knet user whose profile matches it.
+title: "Job: "
+labels: ["job-post"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A bot checks the post and comments within a minute or two. If every check passes, it's
+        published and knet users whose profile matches get notified. Posts stay up for 30 days.
+        **Close this issue when the position is filled** and it's removed from every app.
+  - type: input
+    id: job_title
+    attributes:
+      label: Job title
+      placeholder: Senior Backend Engineer
+    validations:
+      required: true
+  - type: input
+    id: company
+    attributes:
+      label: Company
+      placeholder: Acme
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: Where candidates can be. Be specific; knet hides jobs from people outside it.
+      placeholder: "Remote - LATAM / Remote - Worldwide / Buenos Aires, Argentina"
+    validations:
+      required: true
+  - type: input
+    id: workplace
+    attributes:
+      label: Workplace
+      placeholder: Remote, Hybrid or On-site
+  - type: input
+    id: type
+    attributes:
+      label: Employment type
+      placeholder: Full-time, Part-time, Contract or Internship
+  - type: input
+    id: level
+    attributes:
+      label: Seniority
+      placeholder: Junior, Mid, Senior, Lead...
+  - type: input
+    id: salary
+    attributes:
+      label: Salary
+      description: Optional, but posts with a salary get more applicants.
+      placeholder: USD 3,000-4,500 / month
+  - type: input
+    id: skills
+    attributes:
+      label: Skills / tech stack
+      description: Comma-separated. Used to match candidates.
+      placeholder: Python, Django, PostgreSQL, AWS
+  - type: input
+    id: apply
+    attributes:
+      label: How to apply
+      description: An https:// link to the application page, or an email address.
+      placeholder: https://acme.com/careers/backend or jobs@acme.com
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: The role, responsibilities, requirements and benefits (at least 150 characters).
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: This is a real open position, and applicants are never asked to pay anything.
+          required: true

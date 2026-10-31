@@ -36,6 +36,12 @@ function safeSet(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore *
 
 function scoreClass(s) { return s >= 70 ? 'good' : s >= 45 ? 'ok' : 'low'; }
 
+// Score as a progress ring (see .score in styles.css).
+function scoreRing(score, size = '') {
+  const p = Math.max(0, Math.min(100, Number(score) || 0));
+  return h('div', { class: `score ${scoreClass(p)} ${size}`.trim(), style: `--p:${p}`, title: `${p}% match` }, h('span', {}, p));
+}
+
 function ago(iso) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 3600) return `${Math.max(1, Math.round(s / 60))}m ago`;
@@ -86,9 +92,9 @@ function renderList() {
       'data-id': j.id,
       onclick: () => selectJob(j.id),
     },
-    h('div', { class: `score ${scoreClass(j.score)}` }, j.score),
+    scoreRing(j.score),
     h('div', { style: 'min-width:0' },
-      h('div', { class: 'title' }, j.title),
+      h('div', { class: 'title' }, j.source === 'posted' ? h('span', { class: 'pill posted', title: 'Posted directly on knet' }, 'posted') : null, ' ', j.title),
       h('div', { class: 'meta' }, `${j.company} · ${j.location || 'Remote'} · ${ago(j.postedAt)}`),
       j.status === 'applied' && j.application ? h('div', { class: 'meta' }, `Stage: ${STAGES[j.application.stage]}`) : null,
       skills.length ? h('div', { class: 'tags' }, skills.slice(0, 5).map((s) => h('span', { class: 'tag hit' }, s))) : null)));
@@ -115,9 +121,11 @@ function renderDetail(j) {
   const d = $('#jobDetail');
   const m = j.match || {};
   const fromCompany = j.id.split(':').length >= 3;
-  const src = fromCompany
-    ? { label: `${j.company} careers (${state.platforms[j.source] || j.source})`, homepage: j.url }
-    : state.sources[j.source];
+  const src = j.source === 'posted'
+    ? { label: 'Posted on knet (see the post on GitHub)', homepage: j.issueUrl || state.sources.posted?.homepage }
+    : fromCompany
+      ? { label: `${j.company} careers (${state.platforms[j.source] || j.source})`, homepage: j.url }
+      : state.sources[j.source];
   const statusBtn = (status, label) => h('button', {
     class: `btn${j.status === status ? ' on' : ''}`,
     onclick: async () => {
@@ -134,14 +142,15 @@ function renderDetail(j) {
   const LABELS = { skills: 'Tech skills', title: 'Role', experience: 'Experience', soft: 'Soft skills', location: 'Location' };
   const MAX = { skills: 45, title: 25, experience: 15, soft: 10, location: 5 };
 
-  d.replaceChildren(
+  // Wrapped in h() so conditional sections that are null are skipped (replaceChildren would print "null").
+  d.replaceChildren(h('div', {},
     h('div', { style: 'display:flex;gap:14px;align-items:flex-start' },
-      h('div', { class: `score ${scoreClass(j.score)}`, style: 'width:56px;height:56px;font-size:16px;flex:none' }, j.score),
+      scoreRing(j.score, 'big'),
       h('div', {},
         h('h2', {}, j.title),
         h('div', { class: 'sub' }, [j.company, j.location, j.type, j.salary, `posted ${ago(j.postedAt)}`].filter(Boolean).join(' · ')))),
     h('div', { class: 'row' },
-      h('button', { class: 'btn primary', onclick: () => window.knet.openUrl(j.url) }, 'Open posting ↗'),
+      h('button', { class: 'btn primary', onclick: () => window.knet.openUrl(j.url) }, j.url.startsWith('mailto:') ? 'Apply by email ↗' : 'Open posting ↗'),
       statusBtn('saved', 'Save'),
       statusBtn('applied', 'Applied'),
       statusBtn('dismissed', 'Not interested')),
@@ -168,7 +177,7 @@ function renderDetail(j) {
     h('div', { class: 'desc' }, j.description || 'No description provided.'),
     h('p', { class: 'credit muted' }, 'Source: ',
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); window.knet.openUrl(src?.homepage || j.url); } }, src?.label || j.source)),
-  );
+  ));
   d.scrollTop = 0;
 }
 
@@ -451,7 +460,105 @@ function renderSync({ syncing, lastSync }) {
     ...(lastSync.errors || []).map((e) => [h('br'), h('span', { style: 'color:var(--danger)' }, e)]).flat());
 }
 
+// ---------- resizable panels ----------
+
+// Drag a divider to set a width (stored as a CSS variable, remembered per viewer).
+// Double-click resets; arrow keys nudge it when the divider has focus.
+function makeResizer(handle, { cssVar, def, min, max, from }) {
+  const root = document.documentElement;
+  const clamp = (w) => Math.round(Math.min(max(), Math.max(min, w)));
+  const set = (w, save = true) => {
+    const v = clamp(w);
+    root.style.setProperty(cssVar, `${v}px`);
+    handle.setAttribute('aria-valuenow', v);
+    if (save) safeSet(cssVar, String(v));
+    return v;
+  };
+  const current = () => parseFloat(getComputedStyle(root).getPropertyValue(cssVar)) || def;
+  set(Number(safeGet(cssVar)) || def, false);
+  window.addEventListener('resize', () => set(current(), false)); // keep within bounds
+
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add('dragging');
+    document.body.classList.add('resizing');
+    const move = (ev) => set(ev.clientX - from(), false);
+    const up = () => {
+      handle.releasePointerCapture(e.pointerId);
+      handle.removeEventListener('pointermove', move);
+      handle.classList.remove('dragging');
+      document.body.classList.remove('resizing');
+      set(current());
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up, { once: true });
+    handle.addEventListener('pointercancel', up, { once: true });
+  });
+  handle.addEventListener('dblclick', () => set(def));
+  handle.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 50 : 10;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); set(current() - step); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); set(current() + step); }
+  });
+}
+
+function setupResizers() {
+  makeResizer($('#sidebarResizer'), {
+    cssVar: '--sidebar-w', def: 200, min: 150, max: () => Math.min(400, window.innerWidth * 0.4),
+    from: () => 0,
+  });
+  makeResizer($('#listResizer'), {
+    cssVar: '--list-w', def: 420, min: 260,
+    max: () => {
+      const w = $('.split').getBoundingClientRect().width;
+      return w ? Math.max(260, w - 14 - 320) : 2000; // leave room for the detail; hidden view = don't clamp
+    },
+    from: () => $('.split').getBoundingClientRect().left,
+  });
+}
+
 // ---------- wiring ----------
+
+// ---------- post a job ----------
+
+let postSkills = () => [];
+
+function postDraft() {
+  const f = $('#postForm');
+  return {
+    title: f.title.value, company: f.company.value, location: f.location.value, workplace: f.workplace.value,
+    type: f.type.value, level: f.level.value, salary: f.salary.value, tags: postSkills(),
+    apply: f.apply.value, description: f.description.value,
+  };
+}
+
+const CHECK_ICON = { pass: '✓', warn: '!', fail: '✕' };
+
+async function checkPost() {
+  const audit = await window.knet.checkPost(postDraft());
+  const box = $('#postChecks');
+  box.hidden = false;
+  box.replaceChildren(
+    h('div', { class: 'post-verdict' }, audit.blocking
+      ? 'Fix the items marked ✕ first. The same checks run on GitHub.'
+      : audit.status === 'warn' ? 'Ready to post. Have a look at the warnings.' : 'Ready to post.'),
+    ...audit.checks.map((c) => h('div', { class: `check ${c.status}` }, h('b', {}, `${CHECK_ICON[c.status]} ${c.label}`), ` ${c.detail}`)));
+  return audit;
+}
+
+async function submitPost(e) {
+  e.preventDefault();
+  const audit = await checkPost();
+  if (audit.blocking) { $('#postChecks').scrollIntoView({ block: 'nearest' }); return; }
+  const { copied } = await window.knet.openPostForm(postDraft());
+  const msg = $('#postMsg');
+  msg.className = 'hint ok';
+  msg.textContent = copied
+    ? 'Opened GitHub. Your description was too long to pre-fill, so it\'s on your clipboard: paste it into "Description", tick the confirmation box and submit.'
+    : 'Opened GitHub with your post filled in. Tick the confirmation box and press "Submit new issue". The bot replies within a minute or two.';
+}
 
 // ---------- registration ----------
 
@@ -483,6 +590,7 @@ async function init() {
   const s = await window.knet.getState();
   Object.assign(state, { profile: s.profile, settings: s.settings, sources: s.sources, platforms: s.platforms, boardUrls: s.boardUrls });
 
+  setupResizers();
   $$('.nav').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
   $$('[data-goto]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); showView(a.dataset.goto); }));
 
@@ -494,9 +602,12 @@ async function init() {
   $('#search').addEventListener('input', (e) => { state.query = e.target.value; renderList(); });
   const range = $('#minScore');
   range.value = state.minScore;
+  const paintRange = () => range.style.setProperty('--fill', `${range.value}%`); // filled part of the track
+  paintRange();
   $('#minScoreVal').textContent = state.minScore;
   range.addEventListener('input', () => {
     state.minScore = Number(range.value);
+    paintRange();
     $('#minScoreVal').textContent = range.value;
     safeSet('minScore', range.value);
     renderList();
@@ -505,6 +616,9 @@ async function init() {
   $('#syncBtn').addEventListener('click', () => window.knet.syncNow());
   $('#profileForm').addEventListener('submit', saveProfile);
   $('#registerForm').addEventListener('submit', register);
+  postSkills = chipInput($('#postSkills'), []);
+  $('#checkPost').addEventListener('click', checkPost);
+  $('#postForm').addEventListener('submit', submitPost);
   $('#settingsForm').addEventListener('submit', saveSettings);
   $('#testNotif').addEventListener('click', () => window.knet.testNotification());
   $('#addCompany').addEventListener('click', addCompany);

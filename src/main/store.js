@@ -24,7 +24,7 @@ const DEFAULTS = {
     threshold: 60,          // minimum score to notify
     notifications: true,
     maxAgeDays: 3,          // only notify for jobs posted recently
-    sources: { remotive: true, remoteok: true, arbeitnow: true, jobicy: true, getonbrd: true, companies: true },
+    sources: { posted: true, remotive: true, remoteok: true, arbeitnow: true, jobicy: true, getonbrd: true, companies: true },
     companies: DEFAULT_COMPANIES, // { name, platform, slug, enabled, url?, custom?, shared?, suggested? }
     removedShared: [],      // approved sources the user removed (so they don't come back)
   },

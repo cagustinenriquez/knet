@@ -1,11 +1,13 @@
 // Electron entry point: window, tray, background job checks and notifications.
 
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, shell, nativeImage, clipboard } = require('electron');
 const path = require('path');
 const { Store } = require('./store');
 const { SOURCES, fetchAll, dupKey } = require('./sources');
 const { PLATFORMS, checkSource, http } = require('./ats');
 const { fetchApproved, syncApproved, suggestUrl } = require('./shared');
+const { postFormUrl, applyLink } = require('./posts');
+const { auditPost } = require('./audit');
 const { scoreJob } = require('./matcher');
 const { profileError, normalizeEmail, isRegistered } = require('./profile');
 const { STAGES, onStatusChange, setStage, setNotes } = require('./applications');
@@ -86,7 +88,7 @@ function updateTrayMenu() {
 }
 
 function openExternal(url) {
-  if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+  if (/^https?:\/\//i.test(url) || /^mailto:[^\s]+$/i.test(url)) shell.openExternal(url);
 }
 
 const send = (channel, payload) => win && !win.isDestroyed() && win.webContents.send(channel, payload);
@@ -139,6 +141,16 @@ async function sync() {
     const known = new Set(Object.keys(store.data.jobs).filter((id) => store.data.jobs[id].description));
     const { jobs, errors } = await fetchAll(settings, known);
     if (sharedError) errors.push(sharedError);
+
+    // Posted jobs disappear from the feed when their issue is closed or they expire.
+    // If the feed was read fine, drop the ones that are gone (unless saved/applied).
+    const postedOk = settings.sources.posted !== false && !errors.some((e) => e.startsWith(`${SOURCES.posted.label}:`));
+    if (postedOk) {
+      const live = new Set(jobs.filter((j) => j.source === 'posted').map((j) => j.id));
+      for (const [id, j] of Object.entries(store.data.jobs)) {
+        if (j.source === 'posted' && !live.has(id) && !['saved', 'applied'].includes(j.status)) delete store.data.jobs[id];
+      }
+    }
     const now = new Date().toISOString();
     const fresh = [];
     const alertable = [];
@@ -168,6 +180,8 @@ async function sync() {
       }
     }
     jobs.forEach((j) => seeded.add(feedKey(j)));
+    // Mark the posted-jobs feed as loaded even while it's empty, so the very first post alerts.
+    if (postedOk) seeded.add('posted');
     store.data.seededFeeds = [...seeded];
 
     const cutoff = Date.now() - settings.maxAgeDays * 86400000;
@@ -292,6 +306,27 @@ function registerIpc() {
 
   // Paste a careers page URL → find its hiring platform and count its open jobs.
   ipcMain.handle('detect-company', (_e, url) => checkSource(url));
+
+  // "Post a job": check the draft locally, then open the GitHub form pre-filled.
+  const draftPost = (p = {}) => ({
+    title: String(p.title || '').trim(), company: String(p.company || '').trim(), location: String(p.location || '').trim(),
+    workplace: String(p.workplace || ''), type: String(p.type || ''), level: String(p.level || ''),
+    salary: String(p.salary || '').trim(), tags: Array.isArray(p.tags) ? p.tags.map(String).slice(0, 15) : [],
+    apply: applyLink(p.apply), description: String(p.description || '').trim(),
+  });
+  ipcMain.handle('check-post', (_e, p) => auditPost(draftPost(p)));
+  ipcMain.handle('open-post-form', (_e, p) => {
+    const post = draftPost(p);
+    let url = postFormUrl(post);
+    let copied = false;
+    if (url.length > 7000) { // GitHub rejects very long URLs
+      url = postFormUrl(post, { withDescription: false });
+      clipboard.writeText(post.description);
+      copied = true;
+    }
+    openExternal(url);
+    return { copied };
+  });
 
   // Open a pre-filled GitHub issue so an admin can review the source for everyone.
   ipcMain.handle('suggest-source', (_e, key) => {

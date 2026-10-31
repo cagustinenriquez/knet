@@ -185,6 +185,56 @@ function robotsDisallows(robotsTxt, path) {
   return !!best && !best.allow;
 }
 
+// ---------- job posts (users posting their own listing) ----------
+
+const POST_LIMITS = { title: 120, company: 100, location: 120, salary: 80, tags: 15, description: 8000, minDescription: 150 };
+const MAX_LIVE_POSTS = 3;
+const MIN_ACCOUNT_DAYS = 14;
+
+/**
+ * @param post { title, company, location, workplace, type, level, salary, tags[], description, apply }
+ * @param opts { accountAgeDays?: number, livePosts?: number (poster's other live posts), confirmed?: boolean }
+ */
+function auditPost(post, opts = {}) {
+  const checks = [];
+  const add = (id, label, status, detail) => checks.push({ id, label, status, detail });
+  const missing = ['title', 'company', 'location', 'description', 'apply'].filter((k) => !String(post[k] || '').trim());
+  add('complete', 'Required fields', missing.length ? 'fail' : 'pass', missing.length ? `Missing: ${missing.join(', ')}.` : 'All filled in.');
+  const long = Object.entries(POST_LIMITS).filter(([k, max]) => typeof post[k] === 'string' && post[k].length > max).map(([k]) => k);
+  if (long.length) add('length', 'Field lengths', 'fail', `Too long: ${long.join(', ')}.`);
+
+  add('title', 'Title is a job title', JOB_TITLE.test(post.title || '') ? 'pass' : 'warn',
+    JOB_TITLE.test(post.title || '') ? 'Looks like a role.' : `"${String(post.title).slice(0, 80)}" doesn't look like a role (e.g. "Senior Backend Engineer").`);
+
+  const d = String(post.description || '');
+  add('description', 'Real description', d.length >= POST_LIMITS.minDescription ? 'pass' : 'fail',
+    d.length >= POST_LIMITS.minDescription ? `${d.length} characters.` : `Only ${d.length} characters; describe the role, requirements and how to apply (at least ${POST_LIMITS.minDescription}).`);
+
+  const text = `${post.title}\n${post.company}\n${d}\n${post.salary || ''}`;
+  const scams = SCAMS.filter(([re]) => re.test(text)).map(([, why]) => why);
+  add('scam', 'No scam signals', scams.length ? 'fail' : 'pass', scams.length ? `Flagged: ${scams.join('; ')}.` : 'None found.');
+
+  const apply = String(post.apply || '').trim();
+  const email = /^mailto:[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(apply);
+  const host = hostOf(apply);
+  const linkOk = email || (/^https:\/\//i.test(apply) && host && !SHORTENERS.has(host) && !SHORTENERS.has(baseDomain(host)));
+  add('apply', 'Apply link', linkOk ? 'pass' : 'fail',
+    linkOk ? (email ? 'Applications by email.' : `Applications at ${host}.`) : 'Use an https:// link (no link shorteners) or an email address.');
+
+  if (opts.confirmed === false) add('confirm', 'Poster confirmation', 'fail', 'The "real position, no fees" box isn\'t ticked.');
+  if (opts.accountAgeDays != null) {
+    add('account', 'Poster account', opts.accountAgeDays >= MIN_ACCOUNT_DAYS ? 'pass' : 'fail',
+      opts.accountAgeDays >= MIN_ACCOUNT_DAYS ? `GitHub account is ${opts.accountAgeDays} days old.`
+        : `GitHub account is only ${opts.accountAgeDays} days old (under ${MIN_ACCOUNT_DAYS}); an admin needs to check this post.`);
+  }
+  if (opts.livePosts != null) {
+    add('limit', 'Post limit', opts.livePosts < MAX_LIVE_POSTS ? 'pass' : 'fail',
+      opts.livePosts < MAX_LIVE_POSTS ? `${opts.livePosts} other live post${opts.livePosts === 1 ? '' : 's'}.`
+        : `Already ${opts.livePosts} live posts (limit ${MAX_LIVE_POSTS}). Close a filled one first.`);
+  }
+  return summarize(checks);
+}
+
 const ICON = { pass: '✅', warn: '⚠️', fail: '❌' };
 
 // Markdown for a GitHub comment. `safe` strips markup / @mentions from internet text.
@@ -192,4 +242,4 @@ function formatAudit(audit, safe = (s) => s) {
   return audit.checks.map((c) => `${ICON[c.status]} **${c.label}**: ${safe(c.detail)}`).join('\n');
 }
 
-module.exports = { auditSource, formatAudit, looseKey, robotsDisallows, baseDomain, SCAMS };
+module.exports = { auditPost, POST_LIMITS, auditSource, formatAudit, looseKey, robotsDisallows, baseDomain, SCAMS };

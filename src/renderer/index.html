@@ -12,6 +12,7 @@
     <nav>
       <button class="nav active" data-view="matches">Matches <span id="newBadge" class="badge" hidden></span></button>
       <button class="nav" data-view="applications">Applications <span id="appCount" class="count" hidden></span></button>
+      <button class="nav" data-view="post">Post a job</button>
       <button class="nav" data-view="profile">My profile</button>
       <button class="nav" data-view="settings">Settings</button>
     </nav>
@@ -20,6 +21,7 @@
       <div id="syncInfo" class="muted"></div>
     </div>
   </aside>
+  <div class="resizer" id="sidebarResizer" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0" title="Drag to resize · double-click to reset"></div>
 
   <main>
     <!-- REGISTER (shown until the profile has an email) -->
@@ -53,6 +55,7 @@
       </div>
       <div class="split">
         <ul id="jobList" class="job-list"></ul>
+        <div class="resizer" id="listResizer" role="separator" aria-orientation="vertical" aria-label="Resize job list" tabindex="0" title="Drag to resize · double-click to reset"></div>
         <article id="jobDetail" class="detail"><p class="muted empty">Select a job to see why it matches.</p></article>
       </div>
     </section>
@@ -62,6 +65,39 @@
       <h1>Applications</h1>
       <p class="muted">Jobs you marked as Applied. Change a stage from the menu on each card, or click a card for its timeline and notes.</p>
       <div id="board" class="board"></div>
+    </section>
+
+    <!-- POST A JOB -->
+    <section id="view-post" class="view" hidden>
+      <h1>Post a job</h1>
+      <p class="muted">Your listing reaches every knet user whose profile matches it. Posts are published through a
+        GitHub issue (you need a free GitHub account; it keeps out spam bots), checked automatically, and stay up for
+        30 days. Close the issue when the position is filled.</p>
+      <form id="postForm" class="form" novalidate>
+        <label>Job title <input name="title" maxlength="120" placeholder="Senior Backend Engineer" /></label>
+        <label>Company <input name="company" maxlength="100" placeholder="Acme" /></label>
+        <label>Location <span class="hint">Where candidates can be. Be specific: knet hides jobs from people outside it.</span>
+          <input name="location" maxlength="120" placeholder="LATAM / Worldwide / Buenos Aires, Argentina" /></label>
+        <div class="row3">
+          <label>Workplace <select name="workplace"><option>Remote</option><option>Hybrid</option><option>On-site</option></select></label>
+          <label>Type <select name="type"><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option></select></label>
+          <label>Seniority <select name="level"><option value="">Any</option><option>Junior</option><option>Mid</option><option>Senior</option><option>Lead</option></select></label>
+        </div>
+        <label>Salary <span class="hint">optional, but posts with a salary get more applicants</span>
+          <input name="salary" maxlength="80" placeholder="USD 3,000–4,500 / month" /></label>
+        <label>Skills / tech stack <span class="hint">used to match candidates; press Enter after each</span>
+          <div class="chips" id="postSkills"></div></label>
+        <label>How to apply <span class="hint">an https:// link or an email address</span>
+          <input name="apply" maxlength="500" placeholder="https://acme.com/careers/backend or jobs@acme.com" /></label>
+        <label>Description <span class="hint">role, responsibilities, requirements, benefits (at least 150 characters)</span>
+          <textarea name="description" class="notes" rows="10" maxlength="8000"></textarea></label>
+        <div id="postChecks" class="post-checks" hidden></div>
+        <div class="actions">
+          <button class="btn" type="button" id="checkPost">Check post</button>
+          <button class="btn primary" type="submit">Continue on GitHub ↗</button>
+          <span id="postMsg" class="hint"></span>
+        </div>
+      </form>
     </section>
 
     <!-- PROFILE -->

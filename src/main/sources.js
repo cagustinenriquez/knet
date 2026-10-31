@@ -6,6 +6,7 @@
 
 const { stripHtml, fixMojibake } = require('./text');
 const { fetchCompanies, normalizeGetOnBoard, http } = require('./ats');
+const { POSTED_URL, validPosts } = require('./posts');
 
 const UA = 'knet-desktop/0.1 (job alerts MVP)';
 const MAX_DESC = 8000;
@@ -85,6 +86,18 @@ const SOURCES = {
         salary: '',
         type: asArray(j.job_types).join(', '),
       }));
+    },
+  },
+  posted: {
+    label: 'Posted on knet',
+    homepage: 'https://github.com/cagustinenriquez/knet/issues?q=is%3Aissue+is%3Aopen+label%3Ajob-post',
+    async fetch() {
+      try {
+        return validPosts(await http(`${POSTED_URL}?t=${Date.now()}`)); // skip stale caches
+      } catch (e) {
+        if (e.message === 'HTTP 404') return []; // not published yet
+        throw e;
+      }
     },
   },
   jobicy: {

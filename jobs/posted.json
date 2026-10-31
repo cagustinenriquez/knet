@@ -1,0 +1,4 @@
+{
+  "about": "Jobs posted on knet through the 'Post a job' issue form. Every knet app reads this file. Don't edit by hand: the job-posts workflow writes it.",
+  "jobs": []
+}

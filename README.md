@@ -90,6 +90,38 @@ so those jobs are matched on title and location only.
 When a job board or company is loaded for the first time, its existing postings go into
 the app without notifications. Only postings that appear after that trigger alerts.
 
+## Posting a job
+
+Anyone can post a listing from **Post a job** in the app:
+
+1. Fill in the form. **Check post** runs the same checks the server runs, so problems show up
+   before submitting.
+2. **Continue on GitHub** opens a pre-filled "Post a job" issue
+   ([post-job.yml](.github/ISSUE_TEMPLATE/post-job.yml)). Tick the confirmation box and submit.
+   A GitHub account is required; it stands in for a captcha.
+3. The [Job posts](.github/workflows/job-posts.yml) workflow checks it
+   ([auditPost in src/main/audit.js](src/main/audit.js)):
+
+   | Check | Fails when |
+   |---|---|
+   | Required fields, field lengths | Title, company, location, how to apply or description missing / too long |
+   | Real description | Under 150 characters |
+   | No scam signals | Fees, WhatsApp/Telegram contact, crypto investing, daily earnings, "no interview"... |
+   | Apply link | Not an https:// link or email, or a link shortener |
+   | Poster confirmation | The "real position, no fees" box isn't ticked |
+   | Poster account | GitHub account under 14 days old |
+   | Post limit | The poster already has 3 live posts |
+
+   If nothing fails, the post is published to [jobs/posted.json](jobs/posted.json) right away
+   and labeled `published`. Otherwise it's labeled `needs-review`; the poster can edit the issue
+   to fix it, or an admin can publish it anyway with the `approved` label.
+4. Every app reads `jobs/posted.json` on each check as the "Posted on knet" source. Posts go
+   through normal matching, so users whose profile fits get a notification.
+
+Editing the issue re-checks and updates the post (an edit that fails takes it down). Closing
+the issue removes it from every app. Posts expire after 30 days: a daily run removes them and
+closes their issues. Posts can be turned off in Settings → Job sources.
+
 ## Shared sources (suggest → audit → admin review → everyone)
 
 A source you add is only on your computer. Press **Suggest** next to it to share it:
@@ -127,7 +159,8 @@ A source you add is only on your computer. Press **Suggest** next to it to share
   `approved.json`. Apps then drop it and its jobs on their next check, keeping jobs the user
   saved or applied to.
 
-Labels the repo needs: `source-request`, `approved`, `approved-override`, `revoke`, `source-audit`.
+Labels the repo needs: `source-request`, `approved`, `approved-override`, `revoke`, `source-audit`,
+plus `job-post`, `published` and `needs-review` for job posts.
 The list is read from the `dev` branch. Set `KNET_APPROVED_URL` to use another URL (e.g. for
 testing). Entries are validated before use, since the file is public. You can run an audit
 locally: `ISSUE_BODY="$(cat issue.md)" node scripts/review-source.js check`.
@@ -141,15 +174,17 @@ src/main/ats.js       company hiring-platform feeds + careers-URL detection
 src/main/companies.js default company list
 src/main/rss.js       RSS / Atom feed reader
 src/main/shared.js    admin-approved shared sources (download, merge, revoke)
-src/main/audit.js     source audit checks (scams, freshness, overlap, ...)
+src/main/audit.js     source and job-post audit checks (scams, freshness, overlap, ...)
+src/main/posts.js     jobs posted on knet: issue parsing, validation, GitHub form link
 scripts/review-source.js  run by the GitHub workflow to check / approve suggestions
+scripts/review-job.js     run by the GitHub workflow to check / publish / remove job posts
 src/main/location.js  location / region filter
 src/main/profile.js   profile validation (email required)
 src/main/applications.js  application stages, history and notes
 src/main/matcher.js   scoring + explanations (pure functions, unit tested)
 src/main/store.js     JSON file in the OS app-data folder
 src/preload.js        safe bridge between UI and main process
-src/renderer/         UI (plain HTML/CSS/JS, no build step)
+src/renderer/         UI (plain HTML/CSS/JS, no build step; panels resizable by dragging the dividers)
 ```
 
 Data lives in `~/.config/knet/knet-data.json` on Linux
