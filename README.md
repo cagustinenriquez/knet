@@ -241,6 +241,19 @@ src/renderer/         UI (plain HTML/CSS/JS, no build step; panels resizable by 
 Data lives in `~/.config/knet/knet-data.json` on Linux
 (`%APPDATA%\knet` on Windows, `~/Library/Application Support/knet` on macOS).
 
+## Tests
+
+```bash
+npm test               # unit tests (node --test)
+npm run test:e2e       # end-to-end: runs the real app with a fake job board
+npm run test:e2e:manual  # same, but a real notification appears and you click it
+```
+
+`e2e/notification-click.e2e.js`: a new matching job arrives, a notification is shown, the
+window is hidden, the notification is clicked, and the app opens with that job's details.
+It uses a temporary profile and answers network requests locally, so it never touches your
+data or the internet.
+
 ## Packaging
 
 ### Releases (macOS, Windows, snap)

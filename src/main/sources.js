@@ -163,7 +163,4 @@ async function fetchAll(settings, known = new Set()) {
   return { jobs, errors };
 }
 
-// Same company + title + location = same job (often cross-posted to several boards).
-// Location matters: many companies post one opening per country.
-
 module.exports = { SOURCES, fetchAll };

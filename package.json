@@ -11,7 +11,9 @@
     "dist:snap": "electron-builder --linux snap",
     "dist:linux": "electron-builder --linux snap AppImage deb",
     "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win"
+    "dist:win": "electron-builder --win",
+    "test:e2e": "node scripts/e2e.js",
+    "test:e2e:manual": "node scripts/e2e.js --manual"
   },
   "license": "GPL-3.0-or-later",
   "devDependencies": {
