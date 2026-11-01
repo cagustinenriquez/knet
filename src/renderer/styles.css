@@ -353,6 +353,16 @@ legend { font-weight: 700; padding: 0 6px; letter-spacing: -0.01em; }
   box-shadow: var(--shadow-sm); transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease), border-color var(--fast) var(--ease);
 }
 .app-card:hover { transform: translateY(-1px); box-shadow: var(--shadow); border-color: var(--line-strong); }
+.app-card[draggable] { cursor: grab; }
+.app-card.dragging { opacity: 0.4; transform: none; box-shadow: none; }
+.column.drop-over, .close-target.drop-over { border-color: var(--accent); background: var(--accent-soft); }
+.close-targets { display: none; flex-direction: column; gap: 6px; }
+.board.drag-on .close-targets { display: flex; }
+.close-target {
+  border: 1.5px dashed var(--line-strong); border-radius: var(--r); padding: 12px 10px; text-align: center;
+  font-size: 12px; font-weight: 600; color: var(--muted); transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.close-target.drop-over { color: var(--text); border-style: solid; }
 .app-card .title { font-weight: 600; font-size: 13px; line-height: 1.35; }
 .app-card .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .app-foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; }

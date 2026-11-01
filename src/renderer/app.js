@@ -269,8 +269,21 @@ function renderBoard() {
 
   const lastChange = (j) => j.application.history.at(-1).at;
   const card = (j) => h('div', {
-    class: 'app-card',
+    class: 'app-card', draggable: 'true',
     onclick: (e) => { if (e.target.tagName !== 'SELECT') openApplication(j.id); },
+    ondragstart: (e) => {
+      if (e.target.tagName === 'SELECT') { e.preventDefault(); return; }
+      e.dataTransfer.setData('text/x-knet-job', j.id);
+      e.dataTransfer.effectAllowed = 'move';
+      e.currentTarget.classList.add('dragging');
+      // Wait a frame so the drag image is taken before the Closed column changes shape.
+      requestAnimationFrame(() => $('#board').classList.add('drag-on'));
+    },
+    ondragend: (e) => {
+      e.currentTarget.classList.remove('dragging');
+      $('#board').classList.remove('drag-on');
+      $('#board').querySelectorAll('.drop-over').forEach((x) => x.classList.remove('drop-over'));
+    },
   },
   h('div', { class: 'title' }, j.title),
   h('div', { class: 'meta' }, j.company),
@@ -290,10 +303,37 @@ function renderBoard() {
   $('#board').replaceChildren(...columns.map((c) => {
     const items = apps.filter((j) => c.stages.includes(j.application.stage))
       .sort((a, b) => lastChange(b).localeCompare(lastChange(a)));
-    return h('div', { class: `column${c.label === 'Closed' ? ' closed' : ''}` },
+    const closed = c.label === 'Closed';
+    // Open columns take a drop anywhere; Closed shows one drop zone per closed stage while dragging.
+    const col = h('div', { class: `column${closed ? ' closed' : ''}` },
       h('div', { class: 'column-head' }, c.label, h('span', { class: 'muted' }, items.length)),
+      closed ? h('div', { class: 'close-targets' }, CLOSED.map((k) => dropZone(h('div', { class: 'close-target' }, STAGES[k]), k))) : null,
       items.length ? items.map(card) : h('div', { class: 'muted column-empty' }, apps.length ? '—' : c.stages[0] === 'applied' ? 'Click "Applied" on a job to track it here.' : ''));
+    return closed ? col : dropZone(col, c.stages[0]);
   }));
+}
+
+// Make `el` accept a dragged application card and move it to `stage`.
+function dropZone(el, stage) {
+  const isCard = (e) => e.dataTransfer.types.includes('text/x-knet-job');
+  el.addEventListener('dragover', (e) => {
+    if (!isCard(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    el.classList.add('drop-over');
+  });
+  el.addEventListener('dragleave', (e) => { if (!el.contains(e.relatedTarget)) el.classList.remove('drop-over'); });
+  el.addEventListener('drop', (e) => {
+    if (!isCard(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    el.classList.remove('drop-over');
+    $('#board').classList.remove('drag-on');
+    const j = state.jobs.find((x) => x.id === e.dataTransfer.getData('text/x-knet-job'));
+    if (j && j.application && j.application.stage !== stage) changeStage(j, stage);
+  });
+  return el;
 }
 
 function openApplication(id) {

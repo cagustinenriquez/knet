@@ -251,7 +251,9 @@ npm run test:e2e:manual  # same, but a real notification appears and you click i
 
 `e2e/notification-click.e2e.js`: a new matching job arrives, a notification is shown, the
 window is hidden, the notification is clicked, and the app opens with that job's details.
-It uses a temporary profile and answers network requests locally, so it never touches your
+`e2e/board-drag.e2e.js`: on the Applications board, a card is dragged to Interview and then
+to Closed → No response, and each new stage is saved.
+Both use a temporary profile and answer network requests locally, so they never touch your
 data or the internet.
 
 ## Packaging
