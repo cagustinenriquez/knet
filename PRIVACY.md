@@ -17,6 +17,8 @@ Contact: [support email].
 - Posting a job, suggesting a source or reporting a job opens a **public GitHub issue**
   under your own GitHub account. Anyone can read it.
 - No analytics, no tracking, no ads. We don't sell or share your data.
+- **AI assistants** (off by default): if you connect one, it can read your jobs, applications
+  and profile, and sends what it reads to that assistant's provider. See below.
 
 ## What the app stores, and where
 
@@ -45,7 +47,7 @@ The app connects to these services. It sends ordinary web requests and identifie
 `knet-desktop`. It never sends your profile, email or notes.
 
 1. **Job boards and hiring platforms**, to download listings. These are Remotive, Remote OK,
-   Arbeitnow, Jobicy, Get on Board, Greenhouse, Lever, Ashby, Workable, SmartRecruiters,
+   Arbeitnow, Jobicy, Get on Board, TokyoDev, Greenhouse, Lever, Ashby, Workable, SmartRecruiters,
    Recruitee, Breezy, BambooHR, Workday, and any company page or RSS feed you add yourself.
 2. **GitHub (raw.githubusercontent.com)**, to download the shared lists of approved sources,
    jobs posted on OkNetwork, verified posters and hidden jobs.
@@ -73,6 +75,22 @@ your issue, or contact us.
 
 If a job description is too long for the form, the app copies it to your clipboard so you
 can paste it in.
+
+## AI assistants (MCP)
+
+Settings → AI assistants lets AI assistants on your computer (such as Claude, Cursor or VS Code)
+use OkNetwork. It is **off by default**.
+
+- When it's on, OkNetwork runs a small server that only accepts connections **from your own
+  computer** (127.0.0.1), and only from programs that have the secret token shown in Settings.
+  Nothing is opened to the internet.
+- An assistant you connect can read your jobs, match scores, application stages and notes, and
+  your profile (not your email). If you turn on **Allow changes**, it can also save or hide jobs,
+  move applications, add notes and edit your profile.
+- **What the assistant reads is sent to the company that runs it** (for example Anthropic or
+  OpenAI) and handled under that company's privacy policy. OkNetwork itself still sends nothing.
+- Settings shows the assistants' recent activity. Turn the switch off or reset the token to
+  disconnect them all.
 
 ## Notifications
 

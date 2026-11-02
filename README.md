@@ -55,8 +55,11 @@ manual for now. Reading confirmation and rejection emails is a possible next ste
 
 **Job boards** (free public APIs, no keys): [Remotive](https://remotive.com),
 [Remote OK](https://remoteok.com), [Arbeitnow](https://www.arbeitnow.com),
-[Jobicy](https://jobicy.com) and [Get on Board](https://www.getonbrd.com) (LATAM tech jobs,
-many in Spanish). Their terms ask that you link to the original posting and credit them,
+[Jobicy](https://jobicy.com), [Get on Board](https://www.getonbrd.com) (LATAM tech jobs,
+many in Spanish) and [TokyoDev](https://www.tokyodev.com/jobs) (English-speaking developer jobs
+in Japan, from its Atom feed; the summary's "Apply from abroad", Japanese level, remote and yen
+salary become tags, location and salary. Its job pages are behind a Cloudflare bot check, so
+only the feed is read and descriptions are short). Their terms ask that you link to the original posting and credit them,
 which the app does. Remotive's terms also forbid passing their jobs on to other job sites.
 Read each source's terms before launching publicly.
 
@@ -241,6 +244,44 @@ src/renderer/         UI (plain HTML/CSS/JS, no build step; panels resizable by 
 Data lives in `~/.config/knet/knet-data.json` on Linux
 (`%APPDATA%\knet` on Windows, `~/Library/Application Support/knet` on macOS).
 
+## Email & cover letter templates
+
+**Templates** (sidebar) holds your email (subject + message) and cover letter, with variables
+filled in per job: `{{company}}`, `{{role}}`, `{{location}}`, `{{matched_skills}}` (the job's
+skills you have, spelled the way the posting does), `{{top_skill}}`, `{{job_keywords}}`,
+`{{apply_url}}`, `{{my_name}}`, `{{my_email}}`, `{{my_role}}`, `{{years}}`, `{{my_skills}}`,
+`{{today}}`, plus your own fields from the "Your details" form (`{{linkedin}}`, `{{portfolio}}`,
+anything you add). Click a variable to insert it; the preview fills it in for one of your matches,
+and highlights variables with no value (they show as `[name]` so they're never sent by accident).
+
+Every job has an **Email & cover letter** section: both filled in and editable, with Copy, Download
+.txt, Download PDF, and "Email <address> ↗" when the posting lists an email address. AI assistants
+start from the same templates (`fill_templates`), tailoring them to each posting.
+Code: [src/renderer/templates.js](src/renderer/templates.js) (shared by the UI and the main process).
+
+## AI assistants (MCP)
+
+OkNetwork can be used from Claude, Cursor, VS Code and other AI assistants through MCP (Model
+Context Protocol): *"show me this week's best React jobs"*, *"move Catawiki to Interview and note
+the call is on Thursday"*, *"write a cover letter for the Acme job"*.
+
+Turn it on in **Settings → AI assistants** (off by default) and copy the setup for your
+assistant. The running app is the MCP server: it listens on `127.0.0.1` only and needs a secret
+token; nothing is hosted anywhere. Claude Desktop starts `oknetwork --mcp`, a small stdio bridge
+to the running app (it starts the app in the tray if needed).
+
+- Read tools: `search_jobs`, `get_job` (with contact details), `fill_templates`, `get_new_matches`, `list_applications`, `get_profile`, `get_stats`.
+- With **Allow changes** on: `set_job_status`, `set_application_stage`, `add_application_note`
+  (append only), `update_profile`, `record_outreach`, `check_for_new_jobs`.
+- Prompts: `cover_letter`, `interview_prep`, `outreach`, `skills_gap`.
+
+**Outreach drafts:** `/loop 30m /oknetwork:outreach` in Claude Code checks for new jobs every 30
+minutes and drafts a short message for each new match above your threshold: a Gmail draft when
+the posting has an email address (with Gmail connected), otherwise a message shown on the job in
+OkNetwork. Nothing is ever sent; you review and send.
+
+Code in [src/main/mcp/](src/main/mcp/); design and security notes in [docs/mcp.md](docs/mcp.md).
+
 ## Tests
 
 ```bash
@@ -253,7 +294,12 @@ npm run test:e2e:manual  # same, but a real notification appears and you click i
 window is hidden, the notification is clicked, and the app opens with that job's details.
 `e2e/board-drag.e2e.js`: on the Applications board, a card is dragged to Interview and then
 to Closed → No response, and each new stage is saved.
-Both use a temporary profile and answer network requests locally, so they never touch your
+`e2e/templates.e2e.js`: edit the templates (inserting a variable from the chips), save, open a
+job and download its cover letter as .txt and PDF.
+`e2e/mcp.e2e.js`: an MCP client connects to the running app, searches, moves an application
+and edits the profile (the window updates live), then "Allow changes" is switched off in
+Settings and writes are refused.
+All use a temporary profile and answer network requests locally, so they never touch your
 data or the internet.
 
 ## Packaging

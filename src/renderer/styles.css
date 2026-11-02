@@ -299,6 +299,47 @@ fieldset {
   border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 18px 16px; background: var(--panel); box-shadow: var(--shadow-sm);
 }
 legend { font-weight: 700; padding: 0 6px; letter-spacing: -0.01em; }
+/* Templates */
+.tpl-layout { display: grid; grid-template-columns: minmax(380px, 660px) minmax(300px, 1fr); gap: 24px; align-items: start; }
+.tpl-layout .form { margin-top: 18px; }
+.tpl-preview { position: sticky; top: 0; margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow-sm); }
+.tpl-preview-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; font-weight: 600; }
+.tpl-preview-head select { max-width: 260px; margin-left: 6px; font-size: 12.5px; }
+.tpl-doc { white-space: pre-wrap; font-size: 13.5px; line-height: 1.6; max-height: 70vh; overflow: auto; }
+.tpl-doc .subject { font-weight: 700; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+mark.missing { background: color-mix(in srgb, #f0a020 28%, transparent); color: inherit; border-radius: 4px; padding: 0 2px; }
+#tplForm fieldset > label { display: flex; flex-direction: column; gap: 7px; font-weight: 600; margin-top: 10px; }
+#tplForm fieldset > label:first-of-type { margin-top: 2px; }
+#tplForm input:not([type]) { width: 100%; }
+#tplForm textarea, #tplForm input { font-size: 13.5px; font-weight: 400; }
+.tpl-fields { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.tpl-field { display: grid; grid-template-columns: 150px 1fr auto; gap: 6px; align-items: center; }
+.tpl-vars .tag { cursor: pointer; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.tpl-vars .tag:hover { border-color: var(--accent); color: var(--accent); }
+.tpl-vars .tag.custom { border-style: dashed; }
+@media (max-width: 1100px) { .tpl-layout { grid-template-columns: 1fr; } .tpl-preview { position: static; } }
+/* Email & cover letter on a job */
+.kit { margin-top: 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel-2); }
+.kit > summary { cursor: pointer; padding: 10px 14px; font-weight: 600; font-size: 13.5px; }
+.kit-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+.kit-body input, .kit-body textarea { width: 100%; font-size: 13.5px; }
+.kit-body textarea { min-height: 220px; line-height: 1.55; resize: vertical; }
+.kit-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.kit-missing { font-size: 12.5px; color: var(--muted); }
+.mcp-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.mcp-snippet {
+  margin: 6px 0 8px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r);
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; user-select: all;
+}
+#mcpBox label.check { display: flex; flex-wrap: wrap; margin: 8px 0 0; }
+#mcpBox label.check .hint { flex-basis: 100%; margin-left: 26px; }
+#mcpStatus { margin-top: 8px; }
+#mcpStatus.ok { color: var(--text); }
+#mcpStatus.err { color: #d14343; }
+#mcpLog summary { cursor: pointer; font-size: 13px; font-weight: 600; margin-top: 4px; }
+.mcp-activity { list-style: none; padding: 0; margin: 6px 0 0; font-size: 12.5px; max-height: 220px; overflow: auto; }
+.mcp-activity li { padding: 3px 0; border-bottom: 1px solid var(--line); }
+.mcp-activity li.fail { color: #d14343; }
 #sourceList label { display: flex; gap: 10px; align-items: center; padding: 4px 0; font-weight: 500; }
 .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; font-weight: 400; cursor: text; min-height: 42px; align-items: center; }
@@ -399,6 +440,15 @@ body.locked nav, body.locked .sync { visibility: hidden; }
   padding: 0 7px; line-height: 17px; border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--good) 45%, transparent); color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent);
 }
+.pill.draft { border-color: color-mix(in srgb, #2f9e6e 45%, transparent); color: #2f9e6e; background: color-mix(in srgb, #2f9e6e 12%, transparent); margin-right: 4px; }
+.outreach { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel-2); }
+.outreach-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.outreach-head h3 { margin: 0; }
+.outreach-head .muted { font-size: 12.5px; flex: 1; }
+.outreach .hint { margin: 6px 0; font-size: 12.5px; color: var(--muted); }
+.outreach-subject { font-size: 13px; margin: 6px 0 4px; }
+.outreach-msg { margin: 0; white-space: pre-wrap; font: inherit; font-size: 13.5px; line-height: 1.55; }
+.outreach-skip { font-size: 12.5px; margin-top: 10px; }
 .pill.posted { border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); background: var(--accent-soft); }
 
 /* ---------- post a job ---------- */

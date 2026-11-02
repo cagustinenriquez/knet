@@ -99,7 +99,8 @@ function renderList() {
     },
     scoreRing(j.score),
     h('div', { style: 'min-width:0' },
-      h('div', { class: 'title' }, j.source === 'posted' ? h('span', { class: 'pill posted', title: 'Posted directly on knet' }, 'posted') : null, ' ', j.title),
+      h('div', { class: 'title' }, j.source === 'posted' ? h('span', { class: 'pill posted', title: 'Posted directly on knet' }, 'posted') : null,
+        j.outreach?.status === 'drafted' ? h('span', { class: 'pill draft', title: `Message drafted by ${j.outreach.client}` }, 'draft') : null, ' ', j.title),
       h('div', { class: 'meta' }, j.verified ? h('span', { class: 'verified', title: 'Poster verified by a knet admin' }, '✓ ') : null,
         `${j.company} · ${j.location || 'Remote'} · ${ago(j.postedAt)}`),
       j.status === 'applied' && j.application ? h('div', { class: 'meta' }, `Stage: ${STAGES[j.application.stage]}`) : null,
@@ -178,6 +179,8 @@ function renderDetail(j) {
     j.reported ? h('div', { class: 'banner report-note' },
       'Thanks. Finish the report on GitHub (it opened in your browser). This job is now in "Dismissed" for you; ',
       'when 3 people report it, it\'s hidden for everyone until an admin reviews it.') : null,
+    j.outreach ? outreachSection(j) : null,
+    kitSection(j),
     j.status === 'applied' && j.application ? applicationSection(j) : null,
 
     h('h3', {}, 'Why it matches'),
@@ -224,6 +227,34 @@ function descriptionOf(j) {
   const box = h('div', { class: 'desc md' });
   box.append(window.md.renderMarkdown(j.description, { openUrl: (u) => window.knet.openUrl(u) }));
   return box;
+}
+
+// A message an AI assistant drafted for this job (MCP record_outreach). Never sent by the app.
+function outreachSection(j) {
+  const o = j.outreach;
+  if (o.status === 'skipped') {
+    return h('p', { class: 'muted outreach-skip' }, `Skipped by ${o.client} ${ago(o.at)}${o.reason ? `: ${o.reason}` : ''}`);
+  }
+  const copy = h('button', {
+    class: 'btn small',
+    onclick: async () => {
+      await window.knet.copyText(o.subject ? `${o.subject}\n\n${o.message}` : o.message);
+      copy.textContent = 'Copied';
+      setTimeout(() => { copy.textContent = 'Copy'; }, 1500);
+    },
+  }, 'Copy');
+  const where = o.channel === 'email_draft'
+    ? `Email draft to ${o.to || 'the company'} is in your email drafts: review it and send it from there.`
+    : `Review it, then send it ${/linkedin\.com/i.test(o.to) ? 'on LinkedIn' : 'with your application'}.`;
+  return h('div', { class: 'outreach' },
+    h('div', { class: 'outreach-head' },
+      h('h3', {}, 'Drafted message'),
+      h('span', { class: 'muted' }, `by ${o.client} · ${ago(o.at)}`),
+      copy,
+      /^https?:\/\//.test(o.to || '') ? h('button', { class: 'btn small', onclick: () => window.knet.openUrl(o.to) }, 'Open profile ↗') : null),
+    h('p', { class: 'hint' }, where),
+    o.subject ? h('div', { class: 'outreach-subject' }, h('b', {}, 'Subject: '), o.subject) : null,
+    h('pre', { class: 'outreach-msg' }, o.message));
 }
 
 // ---------- applications ----------
@@ -461,6 +492,210 @@ function renderSettings() {
   renderThemePicker();
   $('#sourceList').replaceChildren(...Object.entries(state.sources).map(([k, src]) =>
     h('label', {}, h('input', { type: 'checkbox', name: `src-${k}`, checked: s.sources[k] !== false }), src.label)));
+}
+
+// ---------- templates: email + cover letter (templates.js) ----------
+
+let tplDoc = 'email';     // preview tab in Templates
+let kitDoc = 'email';     // tab in a job's "Email & cover letter"
+let tplFocus = null;      // last focused template field, for inserting variables
+
+// "Email & cover letter" on a job: the user's templates filled in, editable before copying.
+function kitSection(j) {
+  if (!state.templates) return null;
+  const filled = window.tpl.fillAll(state.templates, j, state.profile);
+  const contacts = window.tpl.contactsOf(j);
+  const body = h('div', { class: 'kit-body' });
+  const docName = (kind) => `${kind} - ${j.company} - ${j.title}`;
+
+  const flashBtn = (btn, text) => { const t = btn.textContent; btn.textContent = text; setTimeout(() => { btn.textContent = t; }, 1500); };
+  const draw = () => {
+    const isEmail = kitDoc === 'email';
+    const subject = h('input', { 'aria-label': 'Subject', value: filled.email.subject });
+    const text = h('textarea', { class: 'notes', 'aria-label': isEmail ? 'Email' : 'Cover letter' });
+    text.value = isEmail ? filled.email.body : filled.coverLetter;
+    // Edits stay while this job is open (not saved to the template).
+    subject.addEventListener('input', () => { filled.email.subject = subject.value; });
+    text.addEventListener('input', () => { if (isEmail) filled.email.body = text.value; else filled.coverLetter = text.value; });
+    const full = () => (isEmail ? `${subject.value}\n\n${text.value}` : text.value);
+    const copy = h('button', { type: 'button', class: 'btn small primary', onclick: async (e) => { await window.knet.copyText(text.value); flashBtn(e.target, 'Copied'); } }, 'Copy');
+    const save = (format) => async (e) => {
+      const r = await window.knet.exportDocument({ name: docName(isEmail ? 'Email' : 'Cover letter'), text: full(), format });
+      if (r?.saved) flashBtn(e.target, 'Saved');
+    };
+    const missing = (isEmail ? window.tpl.fill(`${state.templates.email.subject} ${state.templates.email.body}`, window.tpl.variables(j, state.profile, state.templates.fields)).missing
+      : window.tpl.fill(state.templates.coverLetter.body, window.tpl.variables(j, state.profile, state.templates.fields)).missing);
+    // (null entries filtered out: replaceChildren would print "null")
+    body.replaceChildren(...[
+      h('div', { class: 'tabs small' }, [['email', 'Email'], ['letter', 'Cover letter']].map(([k, label]) =>
+        h('button', { type: 'button', class: kitDoc === k ? 'active' : '', onclick: () => { kitDoc = k; draw(); } }, label))),
+      isEmail ? subject : null,
+      text,
+      missing.length ? h('div', { class: 'kit-missing' }, `Still to fill in: ${missing.map((m) => `[${m}]`).join(', ')}. `,
+        h('a', { href: '#', onclick: (e) => { e.preventDefault(); showView('templates'); } }, 'Add them in Templates')) : null,
+      h('div', { class: 'kit-actions' },
+        copy,
+        isEmail ? h('button', { type: 'button', class: 'btn small', onclick: async (e) => { await window.knet.copyText(subject.value); flashBtn(e.target, 'Copied'); } }, 'Copy subject') : null,
+        h('button', { type: 'button', class: 'btn small', onclick: save('txt') }, 'Download .txt'),
+        h('button', { type: 'button', class: 'btn small', onclick: save('pdf') }, 'Download PDF'),
+        isEmail && contacts.emails[0] ? h('button', {
+          type: 'button', class: 'btn small', title: `Opens your email app with a new message to ${contacts.emails[0]} (from the posting)`,
+          onclick: () => window.knet.openUrl(`mailto:${contacts.emails[0]}?subject=${encodeURIComponent(subject.value)}&body=${encodeURIComponent(text.value)}`),
+        }, `Email ${contacts.emails[0]} ↗`) : null,
+        h('a', { href: '#', class: 'muted', onclick: (e) => { e.preventDefault(); showView('templates'); } }, 'Edit templates')),
+    ].filter(Boolean));
+  };
+  draw();
+  return h('details', { class: 'kit' }, h('summary', {}, 'Email & cover letter'), body);
+}
+
+function readTemplateForm() {
+  const f = $('#tplForm');
+  return {
+    email: { subject: f.subject.value, body: f.emailBody.value },
+    coverLetter: { body: f.letterBody.value },
+    fields: $$('.tpl-field', f).map((row) => ({ key: row.querySelector('.k').value, value: row.querySelector('.v').value })),
+  };
+}
+
+function renderTemplateFields(fields) {
+  const row = (fld) => h('div', { class: 'tpl-field' },
+    h('input', { class: 'k', value: fld.key, placeholder: 'name, e.g. github', 'aria-label': 'Field name', oninput: refreshTemplates }),
+    h('input', { class: 'v', value: fld.value, placeholder: 'value, e.g. https://github.com/you', 'aria-label': 'Field value', oninput: refreshTemplates }),
+    h('button', { type: 'button', class: 'btn small', title: 'Remove', onclick: (e) => { e.target.closest('.tpl-field').remove(); refreshTemplates(); } }, '×'));
+  $('#tplFields').replaceChildren(...fields.map(row));
+  $('#tplAddField').onclick = () => { $('#tplFields').append(row({ key: '', value: '' })); $('#tplFields .tpl-field:last-child .k').focus(); };
+}
+
+function renderTemplates() {
+  const t = state.templates;
+  const f = $('#tplForm');
+  f.subject.value = t.email.subject;
+  f.emailBody.value = t.email.body;
+  f.letterBody.value = t.coverLetter.body;
+  renderTemplateFields(t.fields);
+  refreshTemplates();
+}
+
+// Variable chips + live preview, from what's in the form right now.
+function refreshTemplates() {
+  const t = window.tpl.normalize(readTemplateForm());
+  const chip = (key, title, custom) => h('span', {
+    class: `tag${custom ? ' custom' : ''}`, title,
+    onmousedown: (e) => e.preventDefault(), // keep the cursor in the text field
+    onclick: () => insertVariable(key),
+  }, `{{${key}}}`);
+  $('#tplVars').replaceChildren(
+    ...window.tpl.VARIABLES.map((v) => chip(v.key, v.label)),
+    ...t.fields.map((f) => chip(f.key, `Your field: ${f.value || '(empty)'}`, true)));
+
+  // Preview for one of the user's best matches (or a sample job).
+  const sel = $('#tplJob');
+  const jobs = state.jobs.filter((j) => j.status !== 'dismissed').slice(0, 30);
+  const keep = sel.value;
+  sel.replaceChildren(...(jobs.length ? jobs.map((j) => h('option', { value: j.id }, `${j.score} · ${j.title} · ${j.company}`))
+    : [h('option', { value: '' }, 'Sample job')]));
+  if (jobs.some((j) => j.id === keep)) sel.value = keep;
+  const job = state.jobs.find((j) => j.id === sel.value) || {
+    title: 'Senior Frontend Engineer', company: 'Acme', location: 'Remote', url: 'https://example.com/jobs/1', tags: ['React', 'TypeScript'],
+    match: { matchedSkills: state.profile.skills.slice(0, 3) },
+  };
+  const vars = window.tpl.variables(job, state.profile, t.fields);
+  const parts = (text) => window.tpl.fillParts(text, vars).map((p) => (typeof p === 'string' ? p : h('mark', { class: 'missing' }, `[${p.missing}]`)));
+  $$('#tplTabs button').forEach((b) => b.classList.toggle('active', b.dataset.doc === tplDoc));
+  $('#tplPreview').replaceChildren(...(tplDoc === 'email'
+    ? [h('div', { class: 'subject' }, ...parts(t.email.subject)), ...parts(t.email.body)]
+    : parts(t.coverLetter.body)));
+}
+
+function insertVariable(key) {
+  const el = tplFocus || $('#tplForm').emailBody;
+  const text = `{{${key}}}`;
+  const [a, b] = [el.selectionStart ?? el.value.length, el.selectionEnd ?? el.value.length];
+  el.value = el.value.slice(0, a) + text + el.value.slice(b);
+  el.focus();
+  el.selectionStart = el.selectionEnd = a + text.length;
+  refreshTemplates();
+}
+
+function setupTemplates() {
+  const f = $('#tplForm');
+  for (const el of [f.subject, f.emailBody, f.letterBody]) {
+    el.addEventListener('focus', () => { tplFocus = el; });
+    el.addEventListener('input', refreshTemplates);
+  }
+  $('#tplJob').addEventListener('change', refreshTemplates);
+  $$('#tplTabs button').forEach((b) => b.addEventListener('click', () => { tplDoc = b.dataset.doc; refreshTemplates(); }));
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    state.templates = await window.knet.saveTemplates(readTemplateForm());
+    renderTemplates();
+    if (state.selectedId) { const j = state.jobs.find((x) => x.id === state.selectedId); if (j) renderDetail(j); }
+    flash('#tplSaved', 'Saved.');
+  });
+  $('#tplReset').addEventListener('click', () => {
+    if (!confirm('Replace your email and cover letter with the defaults? (Your fields are kept. Nothing is saved until you press Save.)')) return;
+    const fields = readTemplateForm().fields;
+    state.templates = { ...window.tpl.DEFAULTS, fields };
+    renderTemplates();
+  });
+}
+
+// ---------- AI assistants (MCP) ----------
+
+const MCP_HOW = {
+  claudeCode: 'Run this in a terminal. Then ask Claude Code things like "what are my best new job matches?"',
+  claudeDesktop: 'Claude Desktop → Settings → Developer → Edit Config: add this to claude_desktop_config.json (merge it into "mcpServers" if you have others), then restart Claude Desktop. It starts OkNetwork in the tray if it isn\'t running.',
+  cursor: 'Add this to ~/.cursor/mcp.json (merge it into "mcpServers" if you have others).',
+  vscode: 'Command palette → "MCP: Open User Configuration", and add this (merge it into "servers" if you have others).',
+};
+let mcpState = null;
+let mcpClient = 'claudeCode';
+
+function renderMcp(st = mcpState) {
+  if (!st) return;
+  mcpState = st;
+  $('#mcpEnabled').checked = st.enabled;
+  $('#mcpWrites').checked = st.allowWrites;
+  $('#mcpWrites').disabled = !st.enabled;
+  const status = $('#mcpStatus');
+  status.className = `hint${st.error ? ' err' : st.running ? ' ok' : ''}`;
+  status.textContent = st.error ? `Couldn't start: ${st.error}`
+    : st.running ? `On, at 127.0.0.1:${st.port}. ${st.allowWrites ? 'Assistants can read and change your jobs and profile.' : 'Read-only: assistants can look, not change.'}${st.sessions ? ` ${st.sessions} connected.` : ''}`
+      : 'Off.';
+  $('#mcpSetup').hidden = !(st.enabled && st.setup);
+  if (st.setup) {
+    $$('#mcpTabs button').forEach((b) => b.classList.toggle('active', b.dataset.client === mcpClient));
+    $('#mcpHow').textContent = MCP_HOW[mcpClient];
+    $('#mcpSnippet').textContent = st.setup[mcpClient];
+  }
+  $('#mcpActivity').replaceChildren(...(st.activity.length ? st.activity.map((a) =>
+    h('li', { class: a.ok ? '' : 'fail' }, `${shortDate(a.at)} ${new Date(a.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · `,
+      h('b', {}, a.client || 'assistant'), ` · ${a.tool}`,
+      a.jobId ? ` · ${state.jobs.find((j) => j.id === a.jobId)?.title || a.jobId}` : '',
+      a.ok ? '' : ` · ${a.error}`))
+    : [h('li', { class: 'muted' }, 'Nothing yet.')]));
+}
+
+function setupMcp() {
+  window.knet.getMcp().then(renderMcp);
+  $('#mcpEnabled').addEventListener('change', async (e) => renderMcp(await window.knet.setMcp({ enabled: e.target.checked })));
+  $('#mcpWrites').addEventListener('change', async (e) => renderMcp(await window.knet.setMcp({ allowWrites: e.target.checked })));
+  $$('#mcpTabs button').forEach((b) => b.addEventListener('click', () => { mcpClient = b.dataset.client; renderMcp(); }));
+  $('#mcpCopy').addEventListener('click', async () => {
+    await window.knet.copyText($('#mcpSnippet').textContent);
+    $('#mcpCopy').textContent = 'Copied';
+    setTimeout(() => { $('#mcpCopy').textContent = 'Copy'; }, 1500);
+  });
+  $('#mcpReset').addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (!confirm('Reset the token? Every connected assistant stops working until you set it up again with the new token.')) return;
+    renderMcp(await window.knet.resetMcpToken());
+  });
+  // Assistants' tool calls show up live; refresh the whole status now and then (connections).
+  window.knet.on('mcp-activity', () => window.knet.getMcp().then(renderMcp));
+  // An assistant changed the profile: show it.
+  window.knet.on('profile-updated', (profile) => { state.profile = profile; renderProfile(); });
 }
 
 // ---------- company career pages ----------
@@ -708,12 +943,14 @@ function showView(name) {
   if (!isRegistered()) name = 'register';
   $$('.view').forEach((v) => { v.hidden = v.id !== `view-${name}`; });
   $$('.nav').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  if (name === 'templates') refreshTemplates(); // the preview uses the latest jobs
 }
 
 async function init() {
   const s = await window.knet.getState();
   applyTheme(s.settings?.theme);
   Object.assign(state, { profile: s.profile, settings: s.settings, sources: s.sources, platforms: s.platforms, boardUrls: s.boardUrls });
+  state.templates = await window.knet.getTemplates();
 
   setupResizers();
   $$('.nav').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -757,6 +994,8 @@ async function init() {
   $('#settingsForm').addEventListener('submit', saveSettings);
   $('#testNotif').addEventListener('click', () => window.knet.testNotification());
   $('#addCompany').addEventListener('click', addCompany);
+  setupMcp();
+  setupTemplates();
   $('#companyUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addCompany(); } });
 
   window.knet.on('sync-status', renderSync);
@@ -770,6 +1009,7 @@ async function init() {
 
   renderProfile();
   renderSettings();
+  renderTemplates();
   renderSync({ syncing: s.syncing, lastSync: s.lastSync });
   setInterval(() => renderSync({ syncing: $('#syncBtn').disabled, lastSync: state.lastSync }), 60000);
   window.knet.on('sync-status', (x) => { if (x.lastSync) state.lastSync = x.lastSync; });

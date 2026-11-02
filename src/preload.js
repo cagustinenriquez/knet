@@ -18,8 +18,15 @@ contextBridge.exposeInMainWorld('knet', {
   checkPost: (post) => ipcRenderer.invoke('check-post', post),
   openPostForm: (post) => ipcRenderer.invoke('open-post-form', post),
   testNotification: () => ipcRenderer.invoke('test-notification'),
+  getTemplates: () => ipcRenderer.invoke('get-templates'),
+  saveTemplates: (t) => ipcRenderer.invoke('save-templates', t),
+  exportDocument: (doc) => ipcRenderer.invoke('export-document', doc),
+  getMcp: () => ipcRenderer.invoke('get-mcp'),
+  setMcp: (s) => ipcRenderer.invoke('set-mcp', s),
+  resetMcpToken: () => ipcRenderer.invoke('reset-mcp-token'),
+  copyText: (text) => ipcRenderer.invoke('copy-text', text),
   on: (channel, fn) => {
-    if (!['jobs-updated', 'sync-status', 'focus-job', 'settings-updated'].includes(channel)) return;
+    if (!['jobs-updated', 'sync-status', 'focus-job', 'settings-updated', 'profile-updated', 'mcp-activity'].includes(channel)) return;
     ipcRenderer.on(channel, (_e, payload) => fn(payload));
   },
 });

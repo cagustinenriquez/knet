@@ -1,6 +1,6 @@
 // Electron entry point: window, tray, background job checks and notifications.
 
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, shell, nativeImage, clipboard } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, shell, nativeImage, clipboard, dialog } = require('electron');
 const path = require('path');
 const { Store } = require('./store');
 const { SOURCES, fetchAll } = require('./sources');
@@ -12,6 +12,9 @@ const { auditPost } = require('./audit');
 const { scoreJob } = require('./matcher');
 const { profileError, normalizeEmail, isRegistered } = require('./profile');
 const { STAGES, onStatusChange, setStage, setNotes } = require('./applications');
+const { createMcp, bridgeCommand } = require('./mcp/app');
+const tpl = require('../renderer/templates');
+const fs = require('fs');
 
 const ICON = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 // macOS menu bar: a black "template" icon that macOS tints (the @2x file is picked up automatically).
@@ -24,6 +27,10 @@ let tray = null;
 let timer = null;
 let syncing = false;
 let quitting = false;
+let mcp = null; // AI assistants (MCP server), see docs/mcp.md
+let syncPromise = null;
+// `--hidden`: start in the tray without showing the window (used by `oknetwork --mcp`).
+const START_HIDDEN = process.argv.includes('--hidden');
 
 // ---------- window & tray ----------
 
@@ -38,6 +45,7 @@ function createWindow() {
     minHeight: 520,
     title: 'OkNetwork',
     icon: ICON,
+    show: !START_HIDDEN,
     backgroundColor: THEME_BG[store.data.settings.theme] || THEME_BG.light,
     autoHideMenuBar: true,
     // macOS: no title bar; the window buttons sit inset over the sidebar.
@@ -131,7 +139,13 @@ function profileIsEmpty() {
   return !isRegistered(p) || (!p.skills.length && !p.titles.length); // no alerts before registration
 }
 
-async function sync() {
+// One check at a time: calling sync() while a check runs returns that check.
+function sync() {
+  if (!syncPromise) syncPromise = runSync().finally(() => { syncPromise = null; });
+  return syncPromise;
+}
+
+async function runSync() {
   if (syncing) return;
   syncing = true;
   send('sync-status', { syncing: true });
@@ -298,6 +312,39 @@ function schedule() {
   timer = setInterval(sync, minutes * 60000);
 }
 
+// ---------- documents ----------
+
+const fileSafe = (s) => s.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) || 'Document';
+
+// Plain text → a simple, printable letter page (text is escaped; no scripts, no remote content).
+function letterHtml(text) {
+  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<!doctype html><meta charset="utf-8"><style>
+    @page { size: A4; margin: 22mm 22mm; }
+    body { font: 11pt/1.55 Georgia, 'DejaVu Serif', serif; color: #111; white-space: pre-wrap; margin: 0; }
+  </style><body>${esc}</body>`;
+}
+
+async function saveDocument(name, text, format) {
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    defaultPath: path.join(app.getPath('downloads'), `${fileSafe(name)}.${format}`),
+    filters: format === 'pdf' ? [{ name: 'PDF', extensions: ['pdf'] }] : [{ name: 'Text', extensions: ['txt'] }],
+  });
+  if (canceled || !filePath) return { saved: false };
+  if (format === 'txt') {
+    fs.writeFileSync(filePath, text.endsWith('\n') ? text : `${text}\n`);
+  } else {
+    const pdfWin = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+    try {
+      await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(letterHtml(text))}`);
+      fs.writeFileSync(filePath, await pdfWin.webContents.printToPDF({ pageSize: 'A4', printBackground: false }));
+    } finally {
+      pdfWin.destroy();
+    }
+  }
+  return { saved: true, filePath };
+}
+
 // ---------- IPC (called from the UI via preload.js) ----------
 
 function registerIpc() {
@@ -332,6 +379,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('save-settings', (_e, settings) => {
+    delete settings.mcp; // changed only through set-mcp / reset-mcp-token
     if ('theme' in settings && !THEME_BG[settings.theme]) delete settings.theme;
     store.data.settings = { ...store.data.settings, ...settings };
     if (settings.theme) win?.setBackgroundColor(THEME_BG[settings.theme]);
@@ -416,6 +464,22 @@ function registerIpc() {
     store.save();
     return true;
   });
+  // Templates: email + cover letter with {{variables}} (src/renderer/templates.js).
+  ipcMain.handle('get-templates', () => tpl.normalize(store.data.templates));
+  ipcMain.handle('save-templates', (_e, t) => {
+    store.data.templates = tpl.normalize(t);
+    store.save();
+    return store.data.templates;
+  });
+  // Save a filled email or cover letter as .txt or .pdf (asks where).
+  ipcMain.handle('export-document', async (_e, { name, text, format }) => saveDocument(String(name || 'Document'), String(text || ''), format === 'pdf' ? 'pdf' : 'txt'));
+
+  // Settings → AI assistants (MCP).
+  ipcMain.handle('get-mcp', () => mcp.status());
+  ipcMain.handle('set-mcp', (_e, s) => mcp.set({ enabled: s?.enabled, allowWrites: s?.allowWrites }));
+  ipcMain.handle('reset-mcp-token', () => mcp.resetToken());
+  ipcMain.handle('copy-text', (_e, text) => { clipboard.writeText(String(text)); return true; });
+
   ipcMain.handle('test-notification', () => {
     new Notification({ title: 'OkNetwork notifications work', body: 'You will see alerts like this for new matches.', icon: ICON }).show();
   });
@@ -441,10 +505,24 @@ if (process.env.SNAP) {
 // (~/.config/knet on Linux) so renaming doesn't strand anyone's profile.
 if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), 'knet'));
 
-if (!app.requestSingleInstanceLock()) {
+if (process.argv.includes('--mcp')) {
+  // `oknetwork --mcp`: the stdio bridge for AI assistants (src/main/mcp/bridge.js). No window,
+  // no single-instance lock: it talks to the running app, and starts it in the tray if needed.
+  const { runBridge } = require('./mcp/bridge');
+  const { spawn } = require('child_process');
+  console.log = console.error; // stdout carries MCP messages only
+  app.disableHardwareAcceleration();
+  app.dock?.hide();
+  const launchApp = () => {
+    const args = process.argv.slice(1).filter((a) => a !== '--mcp');
+    spawn(process.execPath, [...args, '--hidden'], { detached: true, stdio: 'ignore' }).unref();
+  };
+  runBridge({ userData: app.getPath('userData'), launchApp }).then(() => app.exit(0));
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', showWindow);
+  // A second start (from the launcher, or the MCP bridge with --hidden) wakes this one up.
+  app.on('second-instance', (_e, argv) => { if (!argv.includes('--hidden')) showWindow(); });
   app.setAppUserModelId('com.oknetwork.knet'); // needed for notifications on Windows (matches build.appId)
 
   app.whenReady().then(() => {
@@ -453,10 +531,29 @@ if (!app.requestSingleInstanceLock()) {
     rescoreAll(); // matching rules may have changed since the last run
     // Jobs marked "applied" before stages existed start at the Applied stage.
     Object.values(store.data.jobs).forEach((j) => j.status === 'applied' && onStatusChange(j, 'applied'));
+    mcp = createMcp({
+      store,
+      userData: app.getPath('userData'),
+      version: app.getVersion(),
+      bridge: bridgeCommand({ packaged: app.isPackaged, execPath: process.execPath, appPath: app.getAppPath() }),
+      ctx: {
+        data: () => store.data,
+        save: () => store.save(),
+        rescore: rescoreAll,
+        sync,
+        changed: (what) => {
+          if (what === 'profile') send('profile-updated', store.data.profile);
+          send('jobs-updated');
+          updateTrayMenu();
+        },
+      },
+      onActivity: (entry) => send('mcp-activity', entry),
+    });
     registerIpc();
     createWindow();
     createTray();
     schedule();
+    mcp.start();
     sync();
   });
 

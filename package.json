@@ -70,7 +70,8 @@
       "base": "core22",
       "allowNativeWayland": false,
       "plugs": [
-        "default"
+        "default",
+        "network-bind"
       ],
       "publish": null,
       "artifactName": "oknetwork_${version}_${arch}.${ext}",
@@ -138,5 +139,9 @@
       "buildUniversalInstaller": false
     }
   },
-  "desktopName": "oknetwork.desktop"
+  "desktopName": "oknetwork.desktop",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  }
 }

@@ -15,6 +15,7 @@
       <button class="nav" data-view="applications">Applications <span id="appCount" class="count" hidden></span></button>
       <button class="nav" data-view="post">Post a job</button>
       <button class="nav" data-view="profile">My profile</button>
+      <button class="nav" data-view="templates">Templates</button>
       <button class="nav" data-view="settings">Settings</button>
     </nav>
     <div class="sync">
@@ -109,6 +110,51 @@
     </section>
 
     <!-- PROFILE -->
+    <!-- TEMPLATES -->
+    <section id="view-templates" class="view" hidden>
+      <h1>Templates</h1>
+      <p class="muted">Your email and cover letter. The <code>{{variables}}</code> are filled in for each job: open a job
+        and use "Email &amp; cover letter" to copy or download them. AI assistants start from these when they draft for you.</p>
+      <div class="tpl-layout">
+        <form id="tplForm" class="form">
+          <fieldset>
+            <legend>Your details</legend>
+            <p class="hint">Your name, email, role, years and skills come from <a href="#" data-goto="profile">My profile</a>.
+              Add anything else you want in your letters; each becomes a variable, e.g. <code>{{portfolio}}</code>.</p>
+            <div id="tplFields" class="tpl-fields"></div>
+            <button type="button" class="btn small" id="tplAddField">Add a field</button>
+          </fieldset>
+          <fieldset>
+            <legend>Variables</legend>
+            <p class="hint">Click one to insert it where your cursor is in the email or cover letter.</p>
+            <div id="tplVars" class="tags tpl-vars"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Email</legend>
+            <label>Subject <input name="subject" maxlength="300" /></label>
+            <label>Message <textarea name="emailBody" class="notes" rows="13"></textarea></label>
+          </fieldset>
+          <fieldset>
+            <legend>Cover letter</legend>
+            <textarea name="letterBody" class="notes" rows="18" aria-label="Cover letter"></textarea>
+          </fieldset>
+          <div class="actions">
+            <button class="btn primary" type="submit">Save templates</button>
+            <button class="btn" type="button" id="tplReset">Reset to the defaults</button>
+            <span id="tplSaved" class="muted"></span>
+          </div>
+        </form>
+        <aside class="tpl-preview">
+          <div class="tpl-preview-head">
+            <label>Preview for <select id="tplJob"></select></label>
+            <div class="tabs small" id="tplTabs"><button type="button" data-doc="email" class="active">Email</button><button type="button" data-doc="letter">Cover letter</button></div>
+          </div>
+          <div id="tplPreview" class="tpl-doc"></div>
+          <p class="hint"><mark class="missing">[highlighted]</mark> = a variable with no value yet.</p>
+        </aside>
+      </div>
+    </section>
+
     <section id="view-profile" class="view" hidden>
       <h1>My profile</h1>
       <p class="muted">This is what jobs are matched against. Press Enter after each item.</p>
@@ -158,6 +204,32 @@
           <div id="companyMsg" class="hint"></div>
           <ul id="companyList" class="company-list"></ul>
         </fieldset>
+        <fieldset id="mcpBox">
+          <legend>AI assistants</legend>
+          <p class="hint">Use OkNetwork from Claude, Cursor, VS Code and other AI assistants (MCP): "show me this
+            week's best React jobs", "move Catawiki to Interview", "write a cover letter for this job". It runs only on
+            this computer; the assistant you connect sees what it reads. Changes here save right away.</p>
+          <label class="check"><input id="mcpEnabled" type="checkbox" /> Let AI assistants use OkNetwork</label>
+          <label class="check"><input id="mcpWrites" type="checkbox" /> Allow changes
+            <span class="hint">(save or hide jobs, move applications, add notes, edit your profile, check for jobs)</span></label>
+          <div id="mcpStatus" class="hint"></div>
+          <div id="mcpSetup" hidden>
+            <div class="mcp-head">
+              <div class="tabs small" id="mcpTabs" role="tablist">
+                <button type="button" data-client="claudeCode" class="active">Claude Code</button>
+                <button type="button" data-client="claudeDesktop">Claude Desktop</button>
+                <button type="button" data-client="cursor">Cursor</button>
+                <button type="button" data-client="vscode">VS Code</button>
+              </div>
+              <button type="button" class="btn small" id="mcpCopy">Copy</button>
+            </div>
+            <p id="mcpHow" class="hint"></p>
+            <pre id="mcpSnippet" class="mcp-snippet"></pre>
+            <p class="hint">The setup contains a secret token. <a href="#" id="mcpReset">Reset token</a> disconnects every
+              assistant (set them up again afterwards).</p>
+            <details id="mcpLog"><summary>Recent activity</summary><ul id="mcpActivity" class="mcp-activity"></ul></details>
+          </div>
+        </fieldset>
         <div class="actions">
           <button class="btn primary" type="submit">Save settings</button>
           <button class="btn" type="button" id="testNotif">Send test notification</button>
@@ -171,6 +243,7 @@
   </main>
 
   <script src="markdown.js"></script>
+  <script src="templates.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
