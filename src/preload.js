@@ -24,9 +24,10 @@ contextBridge.exposeInMainWorld('knet', {
   getMcp: () => ipcRenderer.invoke('get-mcp'),
   setMcp: (s) => ipcRenderer.invoke('set-mcp', s),
   resetMcpToken: () => ipcRenderer.invoke('reset-mcp-token'),
+  checkVersion: () => ipcRenderer.invoke('check-version'),
   copyText: (text) => ipcRenderer.invoke('copy-text', text),
   on: (channel, fn) => {
-    if (!['jobs-updated', 'sync-status', 'focus-job', 'settings-updated', 'profile-updated', 'mcp-activity'].includes(channel)) return;
+    if (!['jobs-updated', 'sync-status', 'focus-job', 'settings-updated', 'profile-updated', 'mcp-activity', 'version-update'].includes(channel)) return;
     ipcRenderer.on(channel, (_e, payload) => fn(payload));
   },
 });

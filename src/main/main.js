@@ -1,6 +1,7 @@
 // Electron entry point: window, tray, background job checks and notifications.
 
 const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, shell, nativeImage, clipboard, dialog } = require('electron');
+const https = require('https');
 const path = require('path');
 const { Store } = require('./store');
 const { SOURCES, fetchAll } = require('./sources');
@@ -29,6 +30,7 @@ let syncing = false;
 let quitting = false;
 let mcp = null; // AI assistants (MCP server), see docs/mcp.md
 let syncPromise = null;
+let latestVersion = null; // cached from GitHub releases
 // `--hidden`: start in the tray without showing the window (used by `oknetwork --mcp`).
 const START_HIDDEN = process.argv.includes('--hidden');
 
@@ -312,6 +314,61 @@ function schedule() {
   timer = setInterval(sync, minutes * 60000);
 }
 
+// ---------- version check ----------
+
+const RELEASES_API = 'https://api.github.com/repos/cagustinenriquez/knet/releases/latest';
+const RELEASES_URL = 'https://github.com/cagustinenriquez/knet/releases/latest';
+
+function parseVersion(v) {
+  const m = String(v).replace(/^v/, '').match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+function isNewer(remote, current) {
+  const a = parseVersion(remote);
+  const b = parseVersion(current);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return a[i] > b[i]; }
+  return false;
+}
+
+function fetchLatestVersion() {
+  return new Promise((resolve) => {
+    const req = https.get(RELEASES_API, { headers: { 'User-Agent': `OkNetwork/${app.getVersion()}` }, timeout: 10000 }, (res) => {
+      if (res.statusCode !== 200) { resolve(null); return; }
+      let body = '';
+      res.on('data', (d) => { body += d; });
+      res.on('end', () => {
+        try { const data = JSON.parse(body); resolve(data.tag_name || null); } catch { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
+async function checkVersion() {
+  const tag = await fetchLatestVersion();
+  if (tag && isNewer(tag, app.getVersion())) {
+    latestVersion = tag;
+    send('version-update', { latest: latestVersion, url: RELEASES_URL, current: app.getVersion(), isSnap: !!process.env.SNAP });
+  } else {
+    latestVersion = null;
+  }
+}
+
+function maybeCheckVersion() {
+  // Check at most once per day.
+  const last = store.data.lastVersionCheck;
+  const dayAgo = Date.now() - 86400000;
+  if (!last || new Date(last).getTime() < dayAgo) {
+    store.data.lastVersionCheck = new Date().toISOString();
+    store.save();
+    checkVersion();
+  }
+}
+
 // ---------- documents ----------
 
 const fileSafe = (s) => s.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100) || 'Document';
@@ -353,6 +410,7 @@ function registerIpc() {
     settings: store.data.settings,
     lastSync: store.data.lastSync,
     syncing,
+    version: { current: app.getVersion(), latest: latestVersion, url: RELEASES_URL, isSnap: !!process.env.SNAP },
     sources: {
       ...Object.fromEntries(Object.entries(SOURCES).map(([k, s]) => [k, { label: s.label, homepage: s.homepage }])),
       companies: { label: 'Company career pages (list below)' },
@@ -483,6 +541,11 @@ function registerIpc() {
   ipcMain.handle('test-notification', () => {
     new Notification({ title: 'OkNetwork notifications work', body: 'You will see alerts like this for new matches.', icon: ICON }).show();
   });
+
+  ipcMain.handle('check-version', async () => {
+    await checkVersion();
+    return { latest: latestVersion, url: RELEASES_URL, current: app.getVersion(), isSnap: !!process.env.SNAP };
+  });
 }
 
 // ---------- app lifecycle ----------
@@ -555,6 +618,7 @@ if (process.argv.includes('--mcp')) {
     schedule();
     mcp.start();
     sync();
+    maybeCheckVersion();
   });
 
   app.on('before-quit', () => { quitting = true; });

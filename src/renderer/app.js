@@ -27,6 +27,7 @@ const state = {
   query: '',
   minScore: Number(safeGet('minScore') ?? 40),
   selectedId: null,
+  version: null,
 };
 
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
@@ -815,6 +816,19 @@ function renderSync({ syncing, lastSync }) {
     ...(lastSync.errors || []).map((e) => [h('br'), h('span', { style: 'color:var(--danger)' }, e)]).flat());
 }
 
+function renderVersion(v) {
+  if (!v || !v.latest) { $('#updateBtn').hidden = true; return; }
+  const btn = $('#updateBtn');
+  btn.hidden = false;
+  if (v.isSnap) {
+    btn.textContent = `Update to ${v.latest} (snap refresh)`;
+    btn.onclick = () => window.knet.openUrl('https://snapcraft.io/oknetwork');
+  } else {
+    btn.textContent = `Download ${v.latest}`;
+    btn.onclick = () => window.knet.openUrl(v.url);
+  }
+}
+
 // ---------- resizable panels ----------
 
 // Drag a divider to set a width (stored as a CSS variable, remembered per viewer).
@@ -949,7 +963,7 @@ function showView(name) {
 async function init() {
   const s = await window.knet.getState();
   applyTheme(s.settings?.theme);
-  Object.assign(state, { profile: s.profile, settings: s.settings, sources: s.sources, platforms: s.platforms, boardUrls: s.boardUrls });
+  Object.assign(state, { profile: s.profile, settings: s.settings, sources: s.sources, platforms: s.platforms, boardUrls: s.boardUrls, version: s.version });
   state.templates = await window.knet.getTemplates();
 
   setupResizers();
@@ -1001,6 +1015,7 @@ async function init() {
   window.knet.on('sync-status', renderSync);
   window.knet.on('jobs-updated', loadJobs);
   window.knet.on('settings-updated', (settings) => { state.settings.companies = settings.companies; renderCompanies(); });
+  window.knet.on('version-update', (v) => { state.version = v; renderVersion(v); });
   window.knet.on('focus-job', async (id) => {
     showView('matches');
     await loadJobs();
@@ -1011,6 +1026,7 @@ async function init() {
   renderSettings();
   renderTemplates();
   renderSync({ syncing: s.syncing, lastSync: s.lastSync });
+  renderVersion(state.version);
   setInterval(() => renderSync({ syncing: $('#syncBtn').disabled, lastSync: state.lastSync }), 60000);
   window.knet.on('sync-status', (x) => { if (x.lastSync) state.lastSync = x.lastSync; });
   state.lastSync = s.lastSync;
