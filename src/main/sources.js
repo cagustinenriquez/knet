@@ -7,6 +7,7 @@
 const { stripHtml, fixMojibake } = require('./text');
 const { fetchCompanies, normalizeGetOnBoard, http } = require('./ats');
 const { POSTED_URL, validPosts } = require('./posts');
+const { fetchTokyoDev, HOMEPAGE: TOKYODEV_HOME } = require('./tokyodev');
 
 const UA = 'knet-desktop/0.1 (job alerts MVP)';
 const MAX_DESC = 8000;
@@ -134,6 +135,12 @@ const SOURCES = {
           .then((d) => d.data || []).catch(() => [])));
       return results.flat().map((j) => normalizeGetOnBoard(j));
     },
+  },
+  tokyodev: {
+    label: 'TokyoDev',
+    homepage: TOKYODEV_HOME,
+    // English-speaking developer jobs in Japan (many "apply from abroad"), from its Atom feed.
+    fetch: () => fetchTokyoDev(http),
   },
 };
 
