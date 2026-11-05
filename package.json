@@ -1,6 +1,6 @@
 {
   "name": "knet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Job alerts for remote and tech jobs: get notified when a new job matches your skills, experience and location.",
   "main": "src/main/main.js",
   "private": true,

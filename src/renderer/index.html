@@ -21,6 +21,7 @@
     <div class="sync">
       <button id="syncBtn" class="btn small">Check now</button>
       <div id="syncInfo" class="muted"></div>
+      <a href="#" class="contact-link" title="agustinenriquez.dev">Contact the developer ↗</a>
     </div>
   </aside>
   <div class="resizer" id="sidebarResizer" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0" title="Drag to resize · double-click to reset"></div>
@@ -54,6 +55,15 @@
         </div>
         <input id="search" type="search" placeholder="Search title, company, skill…" />
         <label class="range">Min match <input id="minScore" type="range" min="0" max="100" step="5" /> <b id="minScoreVal"></b></label>
+        <div class="range">Posted
+          <div class="tabs" id="postedTabs" title="Only show jobs posted since…">
+            <button data-days="0" title="Posted today">Today</button>
+            <button data-days="1" title="Today and yesterday">+1d</button>
+            <button data-days="2" title="Last 3 days">+2d</button>
+            <button data-days="6" title="Last 7 days">Week</button>
+            <button data-days="any">Any</button>
+          </div>
+        </div>
       </div>
       <div class="split">
         <ul id="jobList" class="job-list"></ul>
@@ -235,9 +245,10 @@
           <button class="btn" type="button" id="testNotif">Send test notification</button>
           <span id="settingsSaved" class="muted"></span>
         </div>
-        <p class="hint about">OkNetwork (knet) 0.1 · Your data stays on this computer.
+        <p class="hint about">OkNetwork (knet) 0.2 · Your data stays on this computer.
           <a href="#" class="privacy-link">Privacy policy</a> ·
-          Free software under the <a href="#" class="license-link">GNU GPL v3</a> (no warranty).</p>
+          Free software under the <a href="#" class="license-link">GNU GPL v3</a> (no warranty).
+          Questions or feedback? <a href="#" class="contact-link">Contact the developer</a>.</p>
       </form>
     </section>
   </main>

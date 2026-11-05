@@ -26,6 +26,7 @@ const state = {
   status: 'inbox',
   query: '',
   minScore: Number(safeGet('minScore') ?? 40),
+  maxDays: safeGet('maxDays') ?? 'any', // 'any', or how many days back from today (0 = today only)
   selectedId: null,
 };
 
@@ -72,12 +73,26 @@ const STATUS_FILTERS = {
   all: (j) => j.status !== 'dismissed',
 };
 
+// Start of the day N days ago, local time (0 = midnight today).
+function dayStart(daysBack) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - daysBack);
+  return d.getTime();
+}
+
+const postedTime = (j) => new Date(j.postedAt || j.firstSeen || 0).getTime() || 0;
+
+// Newest first; the better match wins when two were posted at the same time.
 function visibleJobs() {
   const q = state.query.toLowerCase();
+  const since = state.maxDays === 'any' ? 0 : dayStart(Number(state.maxDays));
   return state.jobs.filter((j) =>
     STATUS_FILTERS[state.status](j) &&
     (state.status !== 'inbox' || j.score >= state.minScore) &&
-    (!q || `${j.title} ${j.company} ${j.tags.join(' ')} ${j.location}`.toLowerCase().includes(q)));
+    postedTime(j) >= since &&
+    (!q || `${j.title} ${j.company} ${j.tags.join(' ')} ${j.location}`.toLowerCase().includes(q)))
+    .sort((a, b) => postedTime(b) - postedTime(a) || b.score - a.score);
 }
 
 // ---------- matches view ----------
@@ -88,7 +103,7 @@ function renderList() {
   list.replaceChildren();
   if (!jobs.length) {
     list.append(h('li', { class: 'muted empty' },
-      state.jobs.length ? 'No jobs here. Try lowering "Min match" or another tab.' : 'Fetching jobs…'));
+      state.jobs.length ? 'No jobs here. Try lowering "Min match", a wider "Posted" range or another tab.' : 'Fetching jobs…'));
   }
   for (const j of jobs.slice(0, 300)) {
     const skills = j.match?.matchedSkills || [];
@@ -974,6 +989,15 @@ async function init() {
     safeSet('minScore', range.value);
     renderList();
   });
+  const dayBtns = $$('#postedTabs button');
+  const paintDays = () => dayBtns.forEach((x) => x.classList.toggle('active', x.dataset.days === String(state.maxDays)));
+  paintDays();
+  dayBtns.forEach((b) => b.addEventListener('click', () => {
+    state.maxDays = b.dataset.days;
+    safeSet('maxDays', state.maxDays);
+    paintDays();
+    renderList();
+  }));
 
   $('#syncBtn').addEventListener('click', () => window.knet.syncNow());
   $('#profileForm').addEventListener('submit', saveProfile);
@@ -1025,8 +1049,9 @@ async function init() {
 
 init();
 
-// Privacy policy and license links (registration screen and Settings).
+// Privacy policy, license and contact links (registration screen, sidebar and Settings).
 const DOC_URLS = {
+  '.contact-link': 'https://agustinenriquez.dev',
   '.privacy-link': 'https://github.com/cagustinenriquez/knet/blob/dev/PRIVACY.md',
   '.license-link': 'https://github.com/cagustinenriquez/knet/blob/dev/LICENSE',
 };
