@@ -1056,7 +1056,7 @@ init();
 
 // Privacy policy, license and contact links (registration screen, sidebar and Settings).
 const DOC_URLS = {
-  '.contact-link': 'https://agustinenriquez.dev',
+  '.contact-link': 'https://www.agustinenriquez.dev',
   '.privacy-link': 'https://github.com/cagustinenriquez/knet/blob/dev/PRIVACY.md',
   '.license-link': 'https://github.com/cagustinenriquez/knet/blob/dev/LICENSE',
 };
