@@ -2,10 +2,12 @@
 //
 // Weights (sum to 100):
 //   tech skills 45 · role/title 25 · experience 15 · soft skills 10 · location 5
-// Any "exclude" keyword found in the title or company drops the score to 0.
+// Any "exclude" keyword found in the title or company drops the score to 0, and so does a job
+// written in a language outside the "Job languages" setting.
 
 const { termRegex } = require('./text');
 const { scoreLocation } = require('./location');
+const { detectLanguage, LANGUAGES } = require('./language');
 
 const WEIGHTS = { skills: 45, title: 25, experience: 15, soft: 10, location: 5 };
 
@@ -162,6 +164,13 @@ function scoreSoft(profile, job) {
 function scoreJob(profile, job) {
   const exclude = (profile.exclude || []).find((x) => termRegex(x).test(`${job.title} ${job.company}`));
   if (exclude) return { score: 0, excluded: exclude, reasons: [`Excluded keyword: ${exclude}`] };
+
+  // "Job languages" setting (passed in by main.js). Unknown language → keep the job.
+  const langs = profile.jobLanguages || [];
+  const language = langs.length ? detectLanguage(`${job.title}\n${job.description}`) : null;
+  if (language && !langs.includes(language)) {
+    return { score: 0, excluded: 'language', language, reasons: [`Written in ${LANGUAGES[language]}, not one of your job languages`] };
+  }
 
   const s = scoreSkills(profile, job);
   const t = scoreTitle(profile, job);

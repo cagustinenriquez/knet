@@ -47,7 +47,7 @@ The app connects to these services. It sends ordinary web requests and identifie
 `knet-desktop`. It never sends your profile, email or notes.
 
 1. **Job boards and hiring platforms**, to download listings. These are Remotive, Remote OK,
-   Arbeitnow, Jobicy, Get on Board, TokyoDev, Greenhouse, Lever, Ashby, Workable, SmartRecruiters,
+   Arbeitnow, Jobicy, Get on Board, TokyoDev, Hacker News (via hnrss.org), We Work Remotely, Findjobit, Greenhouse, Lever, Ashby, Workable, SmartRecruiters,
    Recruitee, Breezy, BambooHR, Workday, and any company page or RSS feed you add yourself.
 2. **GitHub (raw.githubusercontent.com)**, to download the shared lists of approved sources,
    jobs posted on OkNetwork, verified posters and hidden jobs.

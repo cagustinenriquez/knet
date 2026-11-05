@@ -507,6 +507,9 @@ function renderSettings() {
   renderThemePicker();
   $('#sourceList').replaceChildren(...Object.entries(state.sources).map(([k, src]) =>
     h('label', {}, h('input', { type: 'checkbox', name: `src-${k}`, checked: s.sources[k] !== false }), src.label)));
+  const langs = s.jobLanguages || [];
+  $('#languageList').replaceChildren(...Object.entries(state.languages).map(([code, name]) =>
+    h('label', {}, h('input', { type: 'checkbox', name: `lang-${code}`, checked: langs.includes(code) }), name)));
 }
 
 // ---------- templates: email + cover letter (templates.js) ----------
@@ -663,6 +666,7 @@ const MCP_HOW = {
   claudeDesktop: 'Claude Desktop → Settings → Developer → Edit Config: add this to claude_desktop_config.json (merge it into "mcpServers" if you have others), then restart Claude Desktop. It starts OkNetwork in the tray if it isn\'t running.',
   cursor: 'Add this to ~/.cursor/mcp.json (merge it into "mcpServers" if you have others).',
   vscode: 'Command palette → "MCP: Open User Configuration", and add this (merge it into "servers" if you have others).',
+  ohMyPi: 'Add this to ~/.omp/agent/mcp.json (create it if it doesn\'t exist, or merge it into "mcpServers"), then restart omp. Check it with "/mcp list" and "/mcp test oknetwork".',
 };
 let mcpState = null;
 let mcpClient = 'claudeCode';
@@ -802,6 +806,7 @@ async function saveSettings(e) {
     intervalMinutes: Math.max(5, Number(f.intervalMinutes.value) || 30),
     maxAgeDays: Math.max(1, Number(f.maxAgeDays.value) || 3),
     sources: Object.fromEntries(Object.keys(state.sources).map((k) => [k, f[`src-${k}`].checked])),
+    jobLanguages: Object.keys(state.languages).filter((code) => f[`lang-${code}`].checked),
   };
   await window.knet.saveSettings(settings);
   state.settings = { ...state.settings, ...settings };
@@ -964,7 +969,7 @@ function showView(name) {
 async function init() {
   const s = await window.knet.getState();
   applyTheme(s.settings?.theme);
-  Object.assign(state, { profile: s.profile, settings: s.settings, sources: s.sources, platforms: s.platforms, boardUrls: s.boardUrls });
+  Object.assign(state, { profile: s.profile, settings: s.settings, sources: s.sources, platforms: s.platforms, languages: s.languages || {}, boardUrls: s.boardUrls });
   state.templates = await window.knet.getTemplates();
 
   setupResizers();

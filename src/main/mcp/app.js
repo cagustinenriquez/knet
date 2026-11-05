@@ -26,6 +26,8 @@ function snippets({ port, token, bridge }) {
     claudeDesktop: json({ mcpServers: { oknetwork: { command: bridge.command, args: bridge.args } } }),
     cursor: json({ mcpServers: { oknetwork: { url, headers } } }),
     vscode: json({ servers: { oknetwork: { type: 'http', url, headers } } }),
+    // Oh My Pi (omp): ~/.omp/agent/mcp.json; HTTP servers need "type": "http" (its mcp-schema.json).
+    ohMyPi: json({ mcpServers: { oknetwork: { type: 'http', url, headers } } }),
   };
 }
 

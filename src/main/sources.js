@@ -8,6 +8,9 @@ const { stripHtml, fixMojibake } = require('./text');
 const { fetchCompanies, normalizeGetOnBoard, http } = require('./ats');
 const { POSTED_URL, validPosts } = require('./posts');
 const { fetchTokyoDev, HOMEPAGE: TOKYODEV_HOME } = require('./tokyodev');
+const { fetchHackerNews, HOMEPAGE: HN_HOME } = require('./hackernews');
+const { fetchWeWorkRemotely, HOMEPAGE: WWR_HOME } = require('./weworkremotely');
+const { fetchFindjobit, HOMEPAGE: FINDJOBIT_HOME } = require('./findjobit');
 
 const UA = 'knet-desktop/0.1 (job alerts MVP)';
 const MAX_DESC = 8000;
@@ -141,6 +144,24 @@ const SOURCES = {
     homepage: TOKYODEV_HOME,
     // English-speaking developer jobs in Japan (many "apply from abroad"), from its Atom feed.
     fetch: () => fetchTokyoDev(http),
+  },
+  hackernews: {
+    label: 'Hacker News',
+    homepage: HN_HOME,
+    // "X (YC W19) Is Hiring …" posts, from the hnrss.org feed.
+    fetch: () => fetchHackerNews(http),
+  },
+  weworkremotely: {
+    label: 'We Work Remotely',
+    homepage: WWR_HOME,
+    // Remote jobs with full descriptions, from its RSS feed.
+    fetch: () => fetchWeWorkRemotely(http),
+  },
+  findjobit: {
+    label: 'Findjobit',
+    homepage: FINDJOBIT_HOME,
+    // LATAM tech jobs (many in Spanish), from its RSS feed.
+    fetch: () => fetchFindjobit(http),
   },
 };
 

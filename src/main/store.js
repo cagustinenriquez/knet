@@ -26,7 +26,8 @@ const DEFAULTS = {
     threshold: 60,          // minimum score to notify
     notifications: true,
     maxAgeDays: 3,          // only notify for jobs posted recently
-    sources: { posted: true, remotive: true, remoteok: true, arbeitnow: true, jobicy: true, getonbrd: true, tokyodev: true, companies: true },
+    jobLanguages: [],       // languages postings may be written in (language.js); empty = any
+    sources: { posted: true, remotive: true, remoteok: true, arbeitnow: true, jobicy: true, getonbrd: true, tokyodev: true, hackernews: true, weworkremotely: true, findjobit: true, companies: true },
     companies: DEFAULT_COMPANIES, // { name, platform, slug, enabled, url?, custom?, shared?, suggested? }
     removedShared: [],      // approved sources the user removed (so they don't come back)
     mcp: { enabled: false, allowWrites: false, port: 47823, token: '' }, // AI assistants, see docs/mcp.md

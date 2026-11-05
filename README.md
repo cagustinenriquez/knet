@@ -37,7 +37,9 @@ regions they belong to: Argentina matches LATAM, Latin America and Americas. Ent
 "remote" or "worldwide" in your locations mean "I want remote jobs open to anyone", not a place.
 
 Jobs whose title or company contains an "exclude" keyword are hidden. With "Remote only"
-on, on-site jobs are hidden.
+on, on-site jobs are hidden. With languages ticked under Settings → Job languages, jobs written
+in other languages are hidden too ([src/main/language.js](src/main/language.js) guesses a posting's
+language from its common words; postings too short to tell, like title-only feeds, are kept).
 
 You get notified for new jobs at or above the threshold (default 60) posted in the last
 3 days. Up to 3 notifications per check, then one summary.
@@ -59,7 +61,13 @@ manual for now. Reading confirmation and rejection emails is a possible next ste
 many in Spanish) and [TokyoDev](https://www.tokyodev.com/jobs) (English-speaking developer jobs
 in Japan, from its Atom feed; the summary's "Apply from abroad", Japanese level, remote and yen
 salary become tags, location and salary. Its job pages are behind a Cloudflare bot check, so
-only the feed is read and descriptions are short). Their terms ask that you link to the original posting and credit them,
+only the feed is read and descriptions are short), plus [Hacker News jobs](https://news.ycombinator.com/jobs)
+(YC companies' "Is Hiring" posts, from the [hnrss.org](https://hnrss.org/jobs) feed; the title
+gives the company, role, place and YC batch, as there's no description) and
+[We Work Remotely](https://weworkremotely.com) (remote jobs with full descriptions, from its
+[RSS feed](https://weworkremotely.com/remote-jobs.rss)) and [Findjobit](https://findjobit.com)
+(LATAM tech jobs, many in Spanish, from its [RSS feed](https://findjobit.com/jobs/feed); the
+countries a job is open to become its location). Their terms ask that you link to the original posting and credit them,
 which the app does. Remotive's terms also forbid passing their jobs on to other job sites.
 Read each source's terms before launching publicly.
 
@@ -261,7 +269,7 @@ Code: [src/renderer/templates.js](src/renderer/templates.js) (shared by the UI a
 
 ## AI assistants (MCP)
 
-OkNetwork can be used from Claude, Cursor, VS Code and other AI assistants through MCP (Model
+OkNetwork can be used from Claude, Cursor, VS Code, Oh My Pi and other AI assistants through MCP (Model
 Context Protocol): *"show me this week's best React jobs"*, *"move Catawiki to Interview and note
 the call is on Thursday"*, *"write a cover letter for the Acme job"*.
 

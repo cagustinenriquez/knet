@@ -10,6 +10,7 @@ const { fetchApproved, syncApproved, suggestUrl } = require('./shared');
 const { postFormUrl, applyLink, reportFormUrl, validHidden, HIDDEN_URL } = require('./posts');
 const { auditPost } = require('./audit');
 const { scoreJob } = require('./matcher');
+const { LANGUAGES } = require('./language');
 const { profileError, normalizeEmail, isRegistered } = require('./profile');
 const { STAGES, onStatusChange, setStage, setNotes } = require('./applications');
 const { createMcp, bridgeCommand } = require('./mcp/app');
@@ -120,9 +121,13 @@ const send = (channel, payload) => win && !win.isDestroyed() && win.webContents.
 
 // ---------- matching & syncing ----------
 
+// What the matcher scores against: the profile plus the "Job languages" setting.
+const matchProfile = () => ({ ...store.data.profile, jobLanguages: store.data.settings.jobLanguages || [] });
+
 function rescoreAll() {
+  const profile = matchProfile();
   for (const job of Object.values(store.data.jobs)) {
-    const m = scoreJob(store.data.profile, job);
+    const m = scoreJob(profile, job);
     job.score = m.score;
     job.match = m;
   }
@@ -151,7 +156,8 @@ async function runSync() {
   send('sync-status', { syncing: true });
   updateTrayMenu();
   try {
-    const { settings, profile } = store.data;
+    const { settings } = store.data;
+    const profile = matchProfile();
     // Pick up sources other users suggested and an admin approved.
     let sharedError = null;
     try {
@@ -358,6 +364,7 @@ function registerIpc() {
       companies: { label: 'Company career pages (list below)' },
     },
     platforms: Object.fromEntries(Object.entries(PLATFORMS).map(([k, p]) => [k, p.label])),
+    languages: LANGUAGES,
     boardUrls: Object.fromEntries(store.data.settings.companies
       .filter((c) => PLATFORMS[c.platform]).map((c) => [`${c.platform}:${c.slug}`, PLATFORMS[c.platform].boardUrl(c.slug)])),
   }));
@@ -381,7 +388,14 @@ function registerIpc() {
   ipcMain.handle('save-settings', (_e, settings) => {
     delete settings.mcp; // changed only through set-mcp / reset-mcp-token
     if ('theme' in settings && !THEME_BG[settings.theme]) delete settings.theme;
+    if ('jobLanguages' in settings) {
+      settings.jobLanguages = Array.isArray(settings.jobLanguages)
+        ? [...new Set(settings.jobLanguages.filter((l) => LANGUAGES[l]))] : [];
+    }
+    const langsChanged = 'jobLanguages' in settings &&
+      String(settings.jobLanguages) !== String(store.data.settings.jobLanguages || []);
     store.data.settings = { ...store.data.settings, ...settings };
+    if (langsChanged) { rescoreAll(); send('jobs-updated'); }
     if (settings.theme) win?.setBackgroundColor(THEME_BG[settings.theme]);
     store.save();
     schedule();

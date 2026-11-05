@@ -104,7 +104,7 @@ const looseKey = (j) => `${normCompany(j.company)}|${normTitle(j.title, j.locati
 
 // Which copy to keep when the same job arrives from several sources in one check:
 // jobs posted on knet, then the company's own board, then job boards, then aggregators.
-const BOARDS = new Set(['remotive', 'remoteok', 'arbeitnow', 'jobicy', 'getonbrd', 'tokyodev']);
+const BOARDS = new Set(['remotive', 'remoteok', 'arbeitnow', 'jobicy', 'getonbrd', 'tokyodev', 'hackernews', 'weworkremotely', 'findjobit']);
 function sourceRank(source) {
   if (source === 'posted') return 4;
   if (source === 'rss' || source === 'jobpage') return 1;

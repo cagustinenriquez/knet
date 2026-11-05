@@ -328,3 +328,11 @@ test('bridge: explains when AI assistants are off', async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Oh My Pi setup matches its mcp.json schema (HTTP needs "type": "http")', () => {
+  const { snippets } = require('../src/main/mcp/app');
+  const s = snippets({ port: 47823, token: 'abc', bridge: { command: 'oknetwork', args: ['--mcp'] } });
+  assert.deepStrictEqual(JSON.parse(s.ohMyPi), {
+    mcpServers: { oknetwork: { type: 'http', url: 'http://127.0.0.1:47823/mcp', headers: { Authorization: 'Bearer abc' } } },
+  });
+});

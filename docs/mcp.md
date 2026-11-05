@@ -159,7 +159,8 @@ untrusted as the description; that's acceptable because the user reviews every d
   `/Applications/OkNetwork.app/Contents/MacOS/OkNetwork`; on Windows the installed .exe.
   The bridge reads the token itself, so it isn't in the file.)
 
-  Cursor / VS Code: the `mcp.json` equivalent of the Claude Code line.
+  Cursor / VS Code / Oh My Pi: the `mcp.json` equivalent of the Claude Code line (Oh My Pi:
+  `~/.omp/agent/mcp.json`, with `"type": "http"`).
 
 - Activity log.
 
